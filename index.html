@@ -752,6 +752,7 @@ a.anick{background:var(--pre-soft);color:var(--pre)}
 .acct .av{display:grid;place-items:center;background:var(--pre-soft);color:var(--pre);font-weight:800}
 .acct b{display:block;font-size:15px}
 .acct small{display:block;font-size:12px;color:var(--muted);word-break:break-all}
+.cfgwarn{background:#FFF1DC;color:#8A4B00;border-radius:10px;padding:10px 12px;font-weight:600}
 .clst{font-size:13px;color:var(--muted);margin:6px 0 12px;font-weight:600}
 .lcode{display:flex;flex-direction:column;gap:2px;background:var(--paper);border:1.5px dashed var(--line);border-radius:12px;padding:10px 12px;margin:4px 0 6px}
 .lcode .ll{font-size:12px;font-weight:700;color:var(--muted)}
@@ -809,7 +810,8 @@ body.ro [data-act="iedit"],body.ro [data-act="mapedit"],body.ro [data-act="bulkO
 </div>
 <div class="ctx" id="ctx" role="menu"></div>
 
-<script src="firebase-config.js"></script>
+<script>window.__bcCfg={state:"loading"};addEventListener("error",function(e){if(e&&e.filename&&/firebase-config\.js/.test(e.filename))window.__bcCfg.state="syntax";},true);</script>
+<script src="firebase-config.js" onload="if(window.__bcCfg.state==='loading')window.__bcCfg.state='ok'" onerror="window.__bcCfg.state='missing'"></script>
 <script>
 (function(){
 "use strict";
@@ -3343,7 +3345,20 @@ function ckFoldInfo(unpaid){
 
 /* ---------- cloud: Google 로그인 동기화 + 실시간 공유 (Firebase) ---------- */
 const FB_VER = "12.19.0";
-const FB_CFG = (()=>{ const c = window.BOOTHCHECK_FIREBASE; return c && typeof c === "object" && c.apiKey && c.projectId ? c : null; })();
+const FB_RAW = (()=>{ let c = window.BOOTHCHECK_FIREBASE; if(!c){ try{ c = typeof firebaseConfig !== "undefined" ? firebaseConfig : null; }catch(e){ c = null; } } return c && typeof c === "object" ? c : null; })();
+const FB_CFG = FB_RAW && String(FB_RAW.apiKey||"").trim() && String(FB_RAW.projectId||"").trim() && String(FB_RAW.authDomain||"").trim() ? FB_RAW : null;
+const IN_CLAUDE = !!(window.claude && typeof window.claude.use === "function");
+function cfgProblem(){
+  if(IN_CLAUDE) return "Claude 안에서 보는 화면에서는 로그인·실시간 공유를 쓸 수 없어요. GitHub Pages 주소로 열어 주세요.";
+  const st = (window.__bcCfg && window.__bcCfg.state) || "";
+  if(location.protocol === "file:") return "파일을 바로 연 화면이라 로그인을 쓸 수 없어요. GitHub Pages 주소로 열어 주세요.";
+  if(st === "missing") return "firebase-config.js 파일을 찾지 못했어요. index.html과 같은 위치(레포 맨 위)에 이 이름 그대로 올렸는지 확인해 주세요. 올린 직후라면 1~2분 뒤 새로고침해 보세요.";
+  if(st === "syntax") return "firebase-config.js에 문법 오류가 있어요. Firebase가 준 코드 중 { } 안의 값(apiKey 등)만 옮겨 적었는지 확인해 주세요. import 줄이나 initializeApp 줄이 들어가면 안 돼요.";
+  if(!FB_RAW) return "firebase-config.js는 불러왔지만 설정값을 찾지 못했어요. 파일이 window.BOOTHCHECK_FIREBASE = { ... }; 모양인지 확인해 주세요.";
+  const miss = ["apiKey","authDomain","projectId"].filter(k=>!String(FB_RAW[k]||"").trim());
+  if(miss.length) return `firebase-config.js에서 ${miss.join(", ")} 값이 비어 있어요. Firebase 콘솔 → 프로젝트 설정 → 내 앱에서 값을 복사해 넣어 주세요.`;
+  return "";
+}
 const CL = {on:!!FB_CFG, failed:false, A:null, F:null, auth:null, db:null, user:null, authKnown:false, syncing:false, inflight:0, lastSync:0, err:"",
   userT:{}, pubT:{}, pubBusy:{}, pubAgain:{}, pubInfo:{}, unsubUser:null, unsubPub:null, pubKey:"", pending:{}, ed:{}, bigWarned:false, gen:0};
 const CODE_ABC = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -4009,7 +4024,11 @@ function clLiveInner(){
     </div>
     <div class="btnrow" style="margin-top:12px"><button class="btn danger" data-act="clStop">실시간 공유 끝내기</button></div>`;
 }
-function clCards(){ return CL.on ? `<div class="card" id="clAcc">${clAccInner()}</div>` : ""; }
+function clCards(){
+  if(CL.on) return `<div class="card" id="clAcc">${clAccInner()}</div>`;
+  const why = cfgProblem(); if(!why) return "";
+  return `<div class="card" id="clAcc"><h2>로그인·동기화</h2><p class="desc cfgwarn">${esc(why)}</p></div>`;
+}
 function clLiveCard(){
   if(!CL.on) return "";
   const l = linkOf(LIB.current), ed = l && CL.ed[l.code];
