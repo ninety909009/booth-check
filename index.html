@@ -3507,7 +3507,7 @@ function srcSets(){
   const base = isSub() ? getBase(LIB.current) : null; if(!base) return null;
   if(srcCache.b !== base){
     const bs = new Set(), is = new Set();
-    for(const b of base.p.booths){ bs.add(b.id); for(const i of b.items) is.add(i.id); }
+    for(const b of base.p.booths) bs.add(b.id);
     srcCache = {b:base, booths:bs, items:is};
   }
   return srcCache;
@@ -3516,7 +3516,7 @@ function lockedBooth(b){ const s = srcSets(); return !!(s && b && s.booths.has(b
 function lockedItem(i){ const s = srcSets(); return !!(s && i && s.items.has(i.id)); }
 function isBlank(st){ return !st.event.name && !st.booths.length && !st.people.length && !st.event.schedule.length; }
 
-/* 공유되는 부분만 뽑기: 행사 정보·구역·종류·배치도·부스·작가·물품(이름·가격). 구매 체크·수량·메모·태그·지인은 빠짐 */
+/* 공유되는 부분만 뽑기: 행사 정보·구역·종류·배치도·부스·작가·태그·부스 메모. 구매 리스트(물품)·지인·작가 메모는 빠짐 */
 function clone(o){ return o == null ? o : JSON.parse(JSON.stringify(o)); }
 function eqJ(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
 function shareProj(st){
@@ -3524,8 +3524,7 @@ function shareProj(st){
   return {event:{name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, schedule:clone(e.schedule)},
     sections:[...st.sections], cats:[...st.cats], halls:clone(st.halls), marks:clone(st.marks),
     booths:st.booths.map(b=>({id:b.id, section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, memo:b.memo||"", tags:[...(b.tags||[])], pickup:b.pickup||"", times:clone(b.times||[]), pos:clone(b.pos||null),
-      artists:(b.artists||[]).map(a=>({id:a.id, nick:a.nick||"", site:a.site||"", info:a.info||"", preFrom:a.preFrom||"", preTo:a.preTo||"", preToTime:a.preToTime||"", preLink:a.preLink||"", imgs:[...(a.imgs||[])]})),
-      items:(b.items||[]).map(i=>({id:i.id, name:i.name, price:i.price||0, type:i.type, cat:i.cat||"", artist:i.artist||"", sample:i.sample||""}))}))};
+      artists:(b.artists||[]).map(a=>({id:a.id, nick:a.nick||"", site:a.site||"", info:a.info||"", preFrom:a.preFrom||"", preTo:a.preTo||"", preToTime:a.preToTime||"", preLink:a.preLink||"", imgs:[...(a.imgs||[])]}))}))};
 }
 function sanitizeProj(p){
   if(!p || typeof p !== "object" || !Array.isArray(p.booths)) throw new Error("bad data");
@@ -3566,7 +3565,7 @@ function applyShared(st, P, prev, keepLocal){
     const la = new Map((b.artists||[]).map(a=>[a.id, a]));
     b.artists = r.artists.map(ra=>Object.assign(la.get(ra.id) || {memo:"", hidden:false}, clone(ra)));
     const pv = pb.get(r.id);
-    b.items = mergeIds(b.items, r.items, pv && pv.items, keepLocal, (li, ri)=>Object.assign(li || {st:0, want:1, must:false, maybe:true, note:""}, clone(ri)), itemPersonal);
+    if(!Array.isArray(b.items)) b.items = [];
     return b;
   }, boothPersonal);
   const hs = new Set(st.halls.map(h=>h.id));
@@ -3595,7 +3594,7 @@ function m3list(b, m, t, fn){
   for(const x of m) if(!tm.has(x.id)){ const r = pick(x.id); if(r) out.push(r); }
   return out;
 }
-function m3booth(b, m, t){ const o = m3obj(b, m, t, "items"); o.items = m3list(b && b.items, m.items, t.items, (x,y,z)=>m3obj(x,y,z)); return o; }
+function m3booth(b, m, t){ return m3obj(b, m, t, "items"); }
 function merge3(b, m, t){
   b = b || {};
   const ob = (x,y,z)=>m3obj(x,y,z);
@@ -3621,7 +3620,7 @@ function m3deep(b, m, t){
     return m3list(Array.isArray(b) ? b : undefined, m, t, (x,y,z)=>m3deep(x,y,z));
   return m;
 }
-function projSig(p){ const by = (a)=>a.slice().sort((x,y)=>x.id < y.id ? -1 : x.id > y.id ? 1 : 0); return JSON.stringify({...p, halls:by(p.halls), marks:by(p.marks), booths:by(p.booths).map(b=>({...b, items:by(b.items)}))}); }
+function projSig(p){ const by = (a)=>a.slice().sort((x,y)=>x.id < y.id ? -1 : x.id > y.id ? 1 : 0); return JSON.stringify({...p, halls:by(p.halls), marks:by(p.marks), booths:by(p.booths)}); }
 /* 구독한 행사: 원본 정보를 고치면 저장할 때 원래대로 돌림 */
 function guardShared(){
   if(!isSub()) return;
@@ -4023,11 +4022,11 @@ async function clSubscribe(code){
   if(ex){ if(ex.id !== LIB.current) switchEvent(ex.id); toast(ex.link.role === "sub" ? "이미 구독 중인 행사예요" : "내가 공유 중인 행사예요"); return; }
   const got = await clFetchPub(code); if(!got) return;
   const {d, R} = got;
-  if(!await confirmBox(`‘${R.event.name || "이름 없는 행사"}’${d.ownerName ? ` (${d.ownerName}님)` : ""}\n부스 ${R.booths.length}개 · 물품 ${R.booths.reduce((n,b)=>n + b.items.length, 0)}개\n\n구독하면 원본이 바뀔 때마다 자동으로 업데이트돼요. 구매 체크·수량·지인·내 메모는 나만 봐요.`, "구독하기")) return;
+  if(!await confirmBox(`‘${R.event.name || "이름 없는 행사"}’${d.ownerName ? ` (${d.ownerName}님)` : ""}\n부스 ${R.booths.length}개\n\n구독하면 원본이 바뀔 때마다 자동으로 업데이트돼요. 구매 리스트·지인·내 메모는 각자 따로예요.`, "구독하기")) return;
   const id = newLinkedEvent(R, d.ver, {role:"sub", code});
   CL.pubInfo[id] = {ver:d.ver, upd:d.upd, name:d.name, ownerName:d.ownerName || "", owner:d.owner};
   closeSheet(); switchEvent(id); setView("booths"); dropBlank();
-  toast("구독했어요. 원본에서 온 물품은 ‘고민중’으로 들어와요");
+  toast("구독했어요. 구매 리스트는 각자 따로 적어요");
 }
 async function clJoinEdit(code, key){
   if(!CL.db){ toast(CL.on ? "잠시 후 다시 시도해 주세요" : "이 화면에서는 실시간 공유 코드를 쓸 수 없어요"); return; }
@@ -4116,18 +4115,18 @@ function clLiveInner(){
   const busy = !!(CL.pubBusy[id] || CL.pubT[id]);
   const when = pi.upd ? fmtWhen(pi.upd) : "";
   if(!l) return `<h2>실시간 공유</h2>
-    <p class="desc">공유 코드를 한 번만 보내면, 내가 행사를 고칠 때마다 받은 사람에게 <b>자동으로 반영</b>돼요. 부스·작가·배치도·물품(이름·가격)과 부스 태그·메모가 공유되고, 구매 체크·수량·지인·작가 메모는 각자만 봐요.</p>
+    <p class="desc">공유 코드를 한 번만 보내면, 내가 행사를 고칠 때마다 받은 사람에게 <b>자동으로 반영</b>돼요. 부스·작가·배치도·선입금 기간과 부스 태그·메모가 공유되고, 구매 리스트(물품·체크)·지인·작가 메모는 각자 따로예요.</p>
     <button class="btn pre block" data-act="clShare">${CL.user ? "실시간 공유 시작" : "로그인하고 시작하기"}</button>
     <p class="desc" style="margin:10px 0 0">받은 코드(BCL-…, BCE-…)는 아래 ‘불러오기’에 붙여 넣으세요.</p>`;
   if(l.role === "sub") return `<h2>구독 중</h2>
-    <p class="desc">${pi.ownerName ? `<b>${esc(pi.ownerName)}</b>님의 행사예요. ` : ""}원본이 바뀌면 자동으로 업데이트돼요. 부스·작가·물품 정보와 태그·부스 메모는 원본에서만 고칠 수 있어요. 구매 체크·수량·지인·내 메모, 내가 직접 추가한 부스·물품은 내 것으로 남아요.</p>
+    <p class="desc">${pi.ownerName ? `<b>${esc(pi.ownerName)}</b>님의 행사예요. ` : ""}원본이 바뀌면 자동으로 업데이트돼요. 부스·작가 정보와 태그·부스 메모는 원본에서만 고칠 수 있어요. 구매 리스트·지인·내 메모, 내가 직접 추가한 부스는 내 것이에요.</p>
     ${codeBox("BCL-" + l.code, "구독 코드")}
     <p class="clst">${when ? `마지막 업데이트 ${when}` : "연결하는 중…"}${base ? ` · 버전 ${base.v}` : ""}</p>
     <div class="btnrow"><button class="btn ghost" data-act="clCopy" data-v="code">코드 복사</button><button class="btn ghost" data-act="clCopy" data-v="link">링크 복사</button></div>
     <div class="btnrow" style="margin-top:8px"><button class="btn danger" data-act="clUnsub">구독 끊기 (내 행사로 바꾸기)</button></div>`;
   const st = !CL.user ? "⚠ 로그인해야 고친 내용이 반영돼요" : busy ? "올리는 중…" : (when ? `반영됨 · ${when}` : "연결하는 중…") + (base ? ` · 버전 ${base.v}` : "");
   if(l.role === "edit") return `<h2>공동 편집 중</h2>
-    <p class="desc">${pi.ownerName ? `<b>${esc(pi.ownerName)}</b>님의 행사를 같이 고치고 있어요. ` : ""}내가 고친 부스·작가·물품 정보도 모두에게 반영돼요. 구매 체크·수량·메모는 나만 봐요.</p>
+    <p class="desc">${pi.ownerName ? `<b>${esc(pi.ownerName)}</b>님의 행사를 같이 고치고 있어요. ` : ""}내가 고친 부스·작가 정보도 모두에게 반영돼요. 구매 리스트는 각자 따로예요.</p>
     ${codeBox("BCL-" + l.code, "구독 코드")}
     <p class="clst">${esc(st)}</p>
     <div class="btnrow"><button class="btn ghost" data-act="clCopy" data-v="code">구독 코드 복사</button><button class="btn ghost" data-act="clCopy" data-v="link">링크 복사</button></div>
