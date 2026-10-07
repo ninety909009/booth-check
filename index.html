@@ -866,6 +866,8 @@ a.anick svg{color:var(--pre)}
   .setpage{padding-top:28px}
   .stats{max-width:620px}
 }
+.sh-head .sh-title{min-width:0}
+.sh-title h3{overflow-wrap:anywhere}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -926,29 +928,29 @@ function normalize(d){
   if(d.event && typeof d.event === "object"){
     for(const k of Object.keys(s.event)){ if(k !== "schedule") s.event[k] = typeof d.event[k] === "string" ? d.event[k] : ""; }
     if(Array.isArray(d.event.schedule)) s.event.schedule = d.event.schedule.filter(x=>x&&typeof x==="object").map(x=>({
-      id:String(x.id||uid()), time:/^\d{2}:\d{2}$/.test(x.time)?x.time:"", text:String(x.text||"")
+      id:sid(x.id)||uid(), time:/^\d{2}:\d{2}$/.test(x.time)?x.time:"", text:String(x.text||"")
     }));
   }
   if(Array.isArray(d.sections)) s.sections = d.sections.map(x=>String(x).trim()).filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i);
   const cint = (v,lo,hi,df)=>{ v = Math.round(+v); return isNaN(v) ? df : Math.max(lo, Math.min(hi, v)); };
   if(Array.isArray(d.halls) && d.halls.length){
-    s.halls = d.halls.filter(h=>h&&typeof h==="object").map(h=>({id:String(h.id||uid()), name:String(h.name||"관"), w:cint(h.w,8,150,36), h:cint(h.h,6,150,24)}));
+    s.halls = d.halls.filter(h=>h&&typeof h==="object").map(h=>({id:sid(h.id)||uid(), name:String(h.name||"관").slice(0,30), w:cint(h.w,8,150,36), h:cint(h.h,6,150,24)}));
     if(!s.halls.length) s.halls = defaultState().halls;
   }
   const hallIds = new Set(s.halls.map(h=>h.id));
   if(Array.isArray(d.marks)) s.marks = d.marks.filter(m=>m&&typeof m==="object"&&hallIds.has(String(m.hall))).map(m=>({
-    id:String(m.id||uid()), hall:String(m.hall), x:cint(m.x,-999,999,0), y:cint(m.y,-999,999,0), w:cint(m.w,1,200,2), h:cint(m.h,1,200,2),
+    id:sid(m.id)||uid(), hall:String(m.hall), x:cint(m.x,-999,999,0), y:cint(m.y,-999,999,0), w:cint(m.w,1,200,2), h:cint(m.h,1,200,2),
     label:String(m.label||""), color:/^#[0-9a-fA-F]{6}$/.test(m.color)?m.color:"#8A90AD"
   }));
   if(Array.isArray(d.people)) s.people = d.people.filter(x=>x&&typeof x==="object").map(x=>({
-    id:String(x.id||uid()), nick:String(x.nick||"").trim().slice(0,30), memo:String(x.memo||"").slice(0,500), boothId:String(x.boothId||""), met:!!x.met,
-    gifts:Array.isArray(x.gifts) ? x.gifts.filter(g=>g&&typeof g==="object").map(g=>({id:String(g.id||uid()), name:String(g.name||"").trim().slice(0,60), done:!!g.done})).filter(g=>g.name) : []
+    id:sid(x.id)||uid(), nick:String(x.nick||"").trim().slice(0,30), memo:String(x.memo||"").slice(0,500), boothId:sid(x.boothId), met:!!x.met,
+    gifts:Array.isArray(x.gifts) ? x.gifts.filter(g=>g&&typeof g==="object").map(g=>({id:sid(g.id)||uid(), name:String(g.name||"").trim().slice(0,60), done:!!g.done})).filter(g=>g.name) : []
   }));
   if(Array.isArray(d.cats)) s.cats = [...new Set(d.cats.map(c=>String(c||"").trim().slice(0,20)).filter(Boolean))];
   const normPos = p => (p && typeof p==="object" && hallIds.has(String(p.hall))) ? {hall:String(p.hall), x:cint(p.x,-999,999,0), y:cint(p.y,-999,999,0), rot:p.rot?1:0} : null;
   if(Array.isArray(d.booths)){
     s.booths = d.booths.filter(b=>b && typeof b==="object").map(b=>({
-      id: String(b.id || uid()),
+      id: sid(b.id) || uid(),
       section: String(b.section || ""),
       num: String(b.num || ""),
       half: (b.half===1||b.half===2) ? b.half : (b.half===0 ? 0 : (b.size===2 ? 0 : 1)),
@@ -958,7 +960,7 @@ function normalize(d){
       memo: String(b.memo || ""),
       _link: normLink(b.link) || "",
       pickup: normTime(b.pickup) || "",
-      artists: Array.isArray(b.artists) ? b.artists.filter(a=>a&&typeof a==="object").map(a=>({id:String(a.id||uid()), nick:String(a.nick||"").trim().slice(0,30), site:normSite(a.site)||"", info:normLink(a.info)||"", memo:String(a.memo||"").slice(0,200), preFrom:validDate(a.preFrom), preTo:validDate(a.preTo), preToTime:normTime(a.preToTime)||"", hidden:!!a.hidden, imgs:Array.isArray(a.imgs) ? [...new Set(a.imgs.map(u=>normLink(u)).filter(Boolean))].slice(0,12) : []})).filter(a=>a.imgs.length||a.nick||a.site||a.info||a.memo||a.preFrom||a.preTo) : [],
+      artists: Array.isArray(b.artists) ? b.artists.filter(a=>a&&typeof a==="object").map(a=>({id:sid(a.id)||uid(), nick:String(a.nick||"").trim().slice(0,30), site:normSite(a.site)||"", info:normLink(a.info)||"", memo:String(a.memo||"").slice(0,200), preFrom:validDate(a.preFrom), preTo:validDate(a.preTo), preToTime:normTime(a.preToTime)||"", hidden:!!a.hidden, imgs:Array.isArray(a.imgs) ? [...new Set(a.imgs.map(u=>normLink(u)).filter(Boolean))].slice(0,12) : []})).filter(a=>a.imgs.length||a.nick||a.site||a.info||a.memo||a.preFrom||a.preTo) : [],
       friends: Array.isArray(b.friends) ? [...new Set(b.friends.map(f=>String(f||"").trim().slice(0,30)).filter(Boolean))] : (String(b.friend||"").trim() ? [String(b.friend).trim().slice(0,30)] : []),
       isFriend: !!b.isFriend || !!String(b.friend||"").trim() || (Array.isArray(b.friends) && b.friends.some(f=>String(f||"").trim())),
       _bp: {preFrom: validDate(b.preFrom), preTo: validDate(b.preTo), preToTime: normTime(b.preToTime) || ""},
@@ -1031,6 +1033,7 @@ let imeComposing = false;
 document.addEventListener("compositionstart", ()=>{ imeComposing = true; }, true);
 document.addEventListener("compositionend", ()=>{ imeComposing = false; }, true);
 function imeBusy(e){ return !!(e && e.isComposing) || imeComposing; }
+function sid(v){ const t = String(v == null ? "" : v); return /^[A-Za-z0-9_-]{1,40}$/.test(t) ? t : ""; }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function won(n){ return (n||0).toLocaleString("ko-KR") + "원"; }
@@ -1161,24 +1164,24 @@ function amt(i){
   return i.price * i.qty;
 }
 function normSub(x, type){
-  return {id:String(x.id||uid()), name:String(x.name||"").trim().slice(0,40),
+  return {id:sid(x.id)||uid(), name:String(x.name||"").trim().slice(0,40),
     price:(x.price===null||x.price===undefined||x.price==="") ? null : Math.max(0, Math.round(+x.price||0)),
     want:Math.max(0, Math.round(+x.want||0)), st:Math.max(0, Math.min(type==="pre" ? 2 : 1, Math.round(+x.st||0))), note:String(x.note||"").slice(0,120)};
 }
 function flattenSubs(i){
   const subs = Array.isArray(i.subs) ? i.subs.filter(x=>x && typeof x==="object" && String(x.name||"").trim()) : [];
   if(!subs.length) return [i];
-  return subs.map(x=>({...i, id:String(x.id||uid()), name:`${i.name} ${String(x.name).trim()}`.trim(), price:(x.price===null||x.price===undefined||x.price==="") ? i.price : x.price,
+  return subs.map(x=>({...i, id:sid(x.id)||uid(), name:`${i.name} ${String(x.name).trim()}`.trim(), price:(x.price===null||x.price===undefined||x.price==="") ? i.price : x.price,
     want:+x.want||0, st:+x.st||0, note:String(x.note||"") || i.note, subs:undefined}));
 }
 function normItem(i){
   const type = ["pre","on","free"].includes(i.type) ? i.type : "on";
   const subs = [];
   return {
-    id: String(i.id || uid()), name: String(i.name || ""), price: Math.max(0, Math.round(+i.price || 0)), type,
+    id: sid(i.id) || uid(), name: String(i.name || "").slice(0,100), price: Math.max(0, Math.round(+i.price || 0)), type,
     st: subs.length ? 0 : Math.max(0, Math.min(type === "pre" ? 2 : 1, Math.round(+i.st || 0))),
     want: Math.max(1, i.want != null ? Math.round(+i.want || 0) : optQty(i)),
-    sample: normLink(i.sample) || "", artist: String(i.artist || ""), must: !!i.must,
+    sample: normLink(i.sample) || "", artist: sid(i.artist), must: !!i.must,
     note: (String(i.note || "") + optNote(i.opts)).trim().slice(0,120),
     cat: String(i.cat || "").trim().slice(0,20), maybe: (!!i.maybe || (i.want != null && !(+i.want > 0))) && !i.must
   };
@@ -2112,10 +2115,20 @@ function bytesFromB64url(s){
   for(let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
   return out;
 }
-async function pipe(bytes, Stream, fmt){
+async function pipe(bytes, Stream, fmt, max){
   const st = new Blob([bytes]).stream().pipeThrough(new Stream(fmt));
-  return new Uint8Array(await new Response(st).arrayBuffer());
+  if(!max) return new Uint8Array(await new Response(st).arrayBuffer());
+  const rd = st.getReader(), parts = []; let n = 0;
+  for(;;){
+    const {done, value} = await rd.read(); if(done) break;
+    n += value.length;
+    if(n > max){ try{ rd.cancel(); }catch(e){} throw new Error("데이터가 너무 커서 열 수 없어요"); }
+    parts.push(value);
+  }
+  const out = new Uint8Array(n); let o = 0; for(const x of parts){ out.set(x, o); o += x.length; }
+  return out;
 }
+const MAX_INFLATE = 30 * 1024 * 1024;
 const SHARE_ALL = {items:true, status:true, people:true, memo:true};
 function shareOpts(){
   const g = id=>{ const el = document.getElementById(id); return !!(el && el.checked); };
@@ -2149,7 +2162,7 @@ async function parseCode(raw){
   let bytes = bytesFromB64url(m[2]);
   if(m[1] === "BC1z"){
     if(typeof DecompressionStream === "undefined") throw new Error("이 브라우저에서는 이 코드를 열 수 없어요");
-    bytes = await pipe(bytes, DecompressionStream, "deflate-raw");
+    bytes = await pipe(bytes, DecompressionStream, "deflate-raw", MAX_INFLATE);
   }
   return JSON.parse(new TextDecoder().decode(bytes));
 }
@@ -3541,8 +3554,8 @@ function applyShared(st, P, prev, keepLocal){
 function m3leaf(b, m, t){ return b !== undefined && eqJ(b, m) ? t : m; }
 function m3obj(b, m, t, skip){
   const o = {};
-  for(const k of Object.keys(t)) if(k !== skip) o[k] = m3leaf(b ? b[k] : undefined, m[k], t[k]);
-  for(const k of Object.keys(m)) if(k !== skip && !(k in o)) o[k] = m[k];
+  for(const k of Object.keys(t)) if(k !== skip && k !== "__proto__") o[k] = m3leaf(b ? b[k] : undefined, m[k], t[k]);
+  for(const k of Object.keys(m)) if(k !== skip && k !== "__proto__" && !(k in o)) o[k] = m[k];
   return o;
 }
 function m3list(b, m, t, fn){
@@ -3575,6 +3588,7 @@ function m3deep(b, m, t){
   if(isObj(m) && isObj(t)){
     const o = {};
     for(const k of new Set([...Object.keys(t), ...Object.keys(m)])){
+      if(k === "__proto__") continue;
       if(!(k in m)) o[k] = t[k]; else if(!(k in t)) o[k] = m[k];
       else o[k] = m3deep(isObj(b) ? b[k] : undefined, m[k], t[k]);
     }
@@ -3612,7 +3626,7 @@ async function zEnc(obj){
 async function zDec(d){
   if(!d || !d.z) throw new Error("no data");
   let bytes = d.z.toUint8Array();
-  if(d.c) bytes = await pipe(bytes, DecompressionStream, "deflate-raw");
+  if(d.c) bytes = await pipe(bytes, DecompressionStream, "deflate-raw", MAX_INFLATE);
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 function clErrText(e){
@@ -3725,6 +3739,7 @@ async function clStartUserSync(){
 async function clApplyUserDoc(r){
   if(!CL.user) return;
   const id = r.id, ent0 = entOf(id);
+  if(!sid(id)) return;
   if(ent0 && ent0.acct && ent0.acct !== CL.user.uid) return;
   if(r.del){ if(ent0 && (ent0.mod||0) <= (r.upd||0)){ removeLocal(id); if(sh && sh.kind === "events") renderEvents(); } return; }
   if(ent0 && (r.upd||0) <= (ent0.cu||0)) return;
@@ -3745,7 +3760,7 @@ async function clApplyUserDoc(r){
   const js = JSON.stringify(st);
   memEvents[id] = st; lastJs[id] = js; lsSet(EV_PREFIX + id, js);
   if(!ent){ LIB.list.push({id}); ent = entOf(id); }
-  const rl = payload.l && payload.l.code ? payload.l : null;
+  const rl = payload.l && /^[A-Z0-9]{8}$/.test(payload.l.code || "") && ["own", "edit", "sub"].includes(payload.l.role) ? {role:payload.l.role, code:payload.l.code} : null;
   const link = dirty && ent.link !== undefined ? ent.link : rl;
   Object.assign(ent, evMeta(st), {link: link && link.code ? link : null, cu:r.upd, acct:CL.user.uid});
   ent.mod = dirty && js !== rjs ? Date.now() : r.upd;
@@ -3887,7 +3902,7 @@ async function clPushPub(id){
       const enc = await zEnc(merged);
       if(enc.size > 1000000) throw {code:"bc/big"};
       const v = (d.ver||0) + 1;
-      tx.update(ref, {z:enc.z, c:enc.c, ver:v, upd:Date.now(), by:CL.user.uid, name:merged.event.name || ""});
+      tx.update(ref, {z:enc.z, c:enc.c, ver:v, upd:Date.now(), name:merged.event.name || ""});
       out = {v, p:merged};
     });
     const prev = getBase(id);
@@ -3914,7 +3929,7 @@ async function clStartShare(){
   const P = shareProj(S), code = genCode(8);
   try{
     const enc = await zEnc(P); if(enc.size > 1000000) throw {code:"bc/big"};
-    await CL.F.setDoc(pubRef(code), {owner:CL.user.uid, ownerName:CL.user.name || "", name:P.event.name || "", z:enc.z, c:enc.c, ver:1, upd:Date.now(), by:CL.user.uid});
+    await CL.F.setDoc(pubRef(code), {owner:CL.user.uid, name:P.event.name || "", z:enc.z, c:enc.c, ver:1, upd:Date.now()});
     setBase(id, {v:1, p:P}); setLink(id, {role:"own", code});
     clListenPub(); renderTop(); if(view === "info") renderInfo();
     toast("실시간 공유를 시작했어요. 코드를 친구에게 보내 주세요");
@@ -3925,7 +3940,7 @@ async function clStopRemote(code){
   await CL.F.runTransaction(CL.db, async tx=>{
     const snap = await tx.get(ref);
     if(!snap.exists() || snap.data().closed) return;
-    tx.update(ref, {closed:true, ver:(snap.data().ver||0) + 1, upd:Date.now(), by:CL.user.uid});
+    tx.update(ref, {closed:true, ver:(snap.data().ver||0) + 1, upd:Date.now()});
   });
   try{ const qs = await CL.F.getDocs(CL.F.collection(CL.db, "pub", code, "editors")); const ds = []; qs.forEach(d=>ds.push(CL.F.deleteDoc(d.ref))); await Promise.all(ds); }catch(e){}
   try{ await CL.F.deleteDoc(CL.F.doc(CL.db, "pubkeys", code)); }catch(e){}
