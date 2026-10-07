@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function pubOwner(code) { return get(/databases/$(database)/documents/pub/$(code)).data.owner; }
+    function isEditor(code) { return signedIn() && exists(/databases/$(database)/documents/pub/$(code)/editors/$(request.auth.uid)); }
+
+    // 내 행사 (기기 간 동기화): 본인만 읽고 쓰기
+    match /users/{uid}/ev/{eid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // 실시간 공유 행사: 코드를 아는 사람은 읽기만, 만든 사람과 공동 편집자만 수정
+    match /pub/{code} {
+      allow get: if true;
+      allow list: if false;
+      // 만들 때: 만든 사람 = 로그인한 본인, 버전 1부터
+      allow create: if signedIn()
+        && code.matches('^[A-Z0-9]{8}$')
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.ver == 1
+        && request.resource.data.keys().hasOnly(['owner', 'ownerName', 'name', 'z', 'c', 'ver', 'upd', 'by']);
+      // 고칠 때: 주인·이름 고정, 버전은 1씩만 증가, 끝난 공유는 다시 못 고침, 끝내기는 만든 사람만
+      allow update: if signedIn()
+        && request.resource.data.owner == resource.data.owner
+        && request.resource.data.get('ownerName', '') == resource.data.get('ownerName', '')
+        && request.resource.data.ver == resource.data.ver + 1
+        && request.resource.data.keys().hasOnly(['owner', 'ownerName', 'name', 'z', 'c', 'ver', 'upd', 'by', 'closed'])
+        && resource.data.get('closed', false) == false
+        && (resource.data.owner == request.auth.uid
+            || (isEditor(code) && request.resource.data.get('closed', false) == false));
+      // 지우지 않고 closed 표시만 남김 → 끝난 코드를 다른 사람이 다시 차지할 수 없음
+      allow delete: if false;
+
+      // 공동 편집자 목록: 편집 코드(pubkeys)를 아는 사람만 자기 자신을 추가할 수 있음
+      match /editors/{eid} {
+        allow get: if signedIn() && (request.auth.uid == eid || pubOwner(code) == request.auth.uid);
+        allow list: if signedIn() && pubOwner(code) == request.auth.uid;
+        allow create, update: if signedIn()
+          && request.auth.uid == eid
+          && request.resource.data.keys().hasOnly(['key', 'name', 'at'])
+          && request.resource.data.key == get(/databases/$(database)/documents/pubkeys/$(code)).data.key;
+        allow delete: if signedIn() && (request.auth.uid == eid || pubOwner(code) == request.auth.uid);
+      }
+    }
+
+    // 편집 코드: 만든 사람만 보고 바꿀 수 있음
+    match /pubkeys/{code} {
+      allow read, write: if signedIn() && pubOwner(code) == request.auth.uid;
+    }
+  }
+}

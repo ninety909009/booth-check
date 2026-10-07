@@ -743,6 +743,31 @@ a.anick{background:var(--pre-soft);color:var(--pre)}
   padding:11px 18px;border-radius:22px;font-size:14px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:90;max-width:88vw;text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 
+/* cloud */
+.np.lk{background:#fff;color:var(--pre)}
+.np.lk.sub{background:#E6F4EA;color:#1E7B3A}
+.np.lk.edit{background:#FFF1DC;color:#A85A00}
+.acct{display:flex;align-items:center;gap:12px;margin:8px 0 6px}
+.acct img,.acct .av{width:40px;height:40px;border-radius:50%;flex:none;object-fit:cover}
+.acct .av{display:grid;place-items:center;background:var(--pre-soft);color:var(--pre);font-weight:800}
+.acct b{display:block;font-size:15px}
+.acct small{display:block;font-size:12px;color:var(--muted);word-break:break-all}
+.clst{font-size:13px;color:var(--muted);margin:6px 0 12px;font-weight:600}
+.lcode{display:flex;flex-direction:column;gap:2px;background:var(--paper);border:1.5px dashed var(--line);border-radius:12px;padding:10px 12px;margin:4px 0 6px}
+.lcode .ll{font-size:12px;font-weight:700;color:var(--muted)}
+.lcode b{font-family:ui-monospace,Menlo,monospace;font-size:19px;letter-spacing:.06em;word-break:break-all;user-select:all}
+.edbox{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+.edbox h4{margin:0 0 4px;font-size:15px}
+.edbox .lcode b{font-size:15px}
+.edlist{margin-top:10px}
+.edrow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+.edrow span{flex:1;font-weight:700;font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.edrow small{color:var(--muted);font-size:12px}
+.edrow .btn.sm{height:32px}
+.lknote{background:#E6F4EA;color:#1E7B3A;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;margin:0 0 12px;line-height:1.5}
+.sh-body [disabled]:not(.btn){opacity:.55}
+.sh-body .pick button[disabled]{opacity:.5}
+body.ro [data-act="iedit"],body.ro [data-act="mapedit"],body.ro [data-act="bulkOpen"],body.ro [data-act="halladd"],body.ro [data-act="hallset"]{display:none!important}
 @media (min-width:560px){ .pad{padding:18px 18px 110px} .toolbar{padding:14px 18px 10px} }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -784,6 +809,7 @@ a.anick{background:var(--pre-soft);color:var(--pre)}
 </div>
 <div class="ctx" id="ctx" role="menu"></div>
 
+<script src="firebase-config.js"></script>
 <script>
 (function(){
 "use strict";
@@ -860,14 +886,16 @@ function normalize(d){
   return s;
 }
 const IDX_KEY = "boothcheck.index.v2", EV_PREFIX = "boothcheck.ev.";
-const memEvents = {};
+const memEvents = {}, lastJs = {}, pbMem = {};
 function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
 function lsSet(k, v){ try{ localStorage.setItem(k, v); return true; }catch(e){ return false; } }
 function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
 function loadEvent(id){
   if(memEvents[id]) return memEvents[id];
-  try{ const r = lsGet(EV_PREFIX + id); if(r) return (memEvents[id] = normalize(JSON.parse(r))); }catch(e){}
-  return (memEvents[id] = defaultState());
+  let st = null;
+  try{ const r = lsGet(EV_PREFIX + id); if(r) st = normalize(JSON.parse(r)); }catch(e){}
+  st = st || defaultState(); lastJs[id] = JSON.stringify(st);
+  return (memEvents[id] = st);
 }
 function evMeta(st){ return {name:st.event.name, date:st.event.date, count:st.booths.length, updated:Date.now()}; }
 function saveIndex(){ lsSet(IDX_KEY, JSON.stringify(LIB)); }
@@ -888,9 +916,13 @@ let S = loadEvent(LIB.current);
 let saveT = null, saveWarned = false;
 function flush(){
   clearTimeout(saveT); saveT = null;
-  memEvents[LIB.current] = S;
-  const ok = lsSet(EV_PREFIX + LIB.current, JSON.stringify(S));
-  const ent = LIB.list.find(x=>x.id===LIB.current); if(ent) Object.assign(ent, evMeta(S));
+  const id = LIB.current;
+  guardShared();
+  memEvents[id] = S;
+  const js = JSON.stringify(S);
+  const ok = lsSet(EV_PREFIX + id, js);
+  const ent = LIB.list.find(x=>x.id===id); if(ent) Object.assign(ent, evMeta(S));
+  if(lastJs[id] !== js){ lastJs[id] = js; if(ent) ent.mod = Date.now(); clChanged(id); }
   saveIndex();
   if(!ok && !saveWarned){ saveWarned = true; toast("이 화면에서는 자동 저장이 안 돼요. 공유 코드로 백업해 두세요."); }
 }
@@ -955,6 +987,7 @@ function closeViewer(){
   v.classList.remove("show", "write", "zoom");
   if(document.activeElement && v.contains(document.activeElement)) document.activeElement.blur();
   if(wasWrite){ flush(); if(sh && sh.kind === "booth") renderBoothItems(); rerenderSoft(); }
+  if(!sh) clFlushPending();
   return true;
 }
 let vfType = null;
@@ -998,7 +1031,7 @@ function drawWriteList(){
   const mine = b.items.filter(i=> VW.aid && b.artists.length > 1 ? i.artist === VW.aid : true);
   const sum = mine.reduce((n,i)=>n + (i.maybe ? 0 : amt(mkLine(b, i, null))), 0);
   document.getElementById("vfSum").textContent = mine.length ? `${mine.length}개 · ${won(sum)}` : "";
-  el.innerHTML = mine.length ? mine.slice().reverse().map(i=>`<div class="vfi"><span>${esc(i.name)}</span><small>${typeLabel(i)} · ${i.type==="free" ? "무료" : won(i.price)}${i.want>1 ? " × " + i.want : ""}</small><button type="button" data-vfdel="${i.id}" aria-label="${esc(i.name)} 지우기">×</button></div>`).join("")
+  el.innerHTML = mine.length ? mine.slice().reverse().map(i=>`<div class="vfi"><span>${esc(i.name)}</span><small>${typeLabel(i)} · ${i.type==="free" ? "무료" : won(i.price)}${i.want>1 ? " × " + i.want : ""}</small>${lockedItem(i) ? "" : `<button type="button" data-vfdel="${i.id}" aria-label="${esc(i.name)} 지우기">×</button>`}</div>`).join("")
     : `<div class="vfempty">이미지를 보면서 살 물품을 적고 ‘추가’를 누르세요. 이미지를 누르면 확대돼요.</div>`;
 }
 function stepViewer(d){ const n = VW.list.length; if(n < 2) return; VW.k = (VW.k + d + n) % n; showViewer(); }
@@ -1271,11 +1304,12 @@ function urgentBooths(){
     .sort((a,c)=>a.ps.left - c.ps.left);
 }
 function renderTop(){
+  document.body.classList.toggle("ro", isSub());
   const e = S.event, dd = ddayInfo(), t = totals();
   const sub = [e.date && e.date.replace(/-/g,". "), e.time, e.place].filter(Boolean).join("  |  ");
   document.getElementById("top").innerHTML = `
     <div class="top-row">
-      <button class="evbtn" data-act="events" aria-label="행사 바꾸기"><span class="ev-name ${e.name?"":"unset"}" role="heading" aria-level="1">${e.name ? esc(e.name) : "행사 이름을 정해 주세요"}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>${LIB.list.length>1?`<span class="np" style="font-family:var(--body)">${LIB.list.length}개</span>`:""}</button>
+      <button class="evbtn" data-act="events" aria-label="행사 바꾸기"><span class="ev-name ${e.name?"":"unset"}" role="heading" aria-level="1">${e.name ? esc(e.name) : "행사 이름을 정해 주세요"}</span>${roleBadge(LIB.current)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>${LIB.list.length>1?`<span class="np" style="font-family:var(--body)">${LIB.list.length}개</span>`:""}</button>
       ${dd ? `<span class="dday ${dd.c}">${dd.t}</span>` : ""}
     </div>
     ${sub ? `<div class="ev-sub">${esc(sub)}</div>` : ""}
@@ -1597,13 +1631,15 @@ function renderInfo(){
   const e = S.event;
   const cnt = {}; for(const b of S.booths) cnt[b.section] = (cnt[b.section]||0)+1;
   main.innerHTML = `<div class="pad infogrid">
+    ${clCards()}
     ${infoCardEvent()}
     ${infoCardSch()}
     ${infoCardSec()}
     ${infoCardCat()}
+    ${clLiveCard()}
 
     <div class="card">
-      <h2>공유 코드</h2>
+      <h2>${CL.on ? "공유 코드 (한 번만 보내기)" : "공유 코드"}</h2>
       <p class="desc">기본으로 <b>행사 정보</b>(일정·구역·상품 종류·배치도)와 <b>부스 정보</b>(번호·이름·작가·인포 이미지·시간)만 담겨요. 친구가 ‘불러오기’에 붙여 넣으면 같은 부스 목록이 생겨요. 더 담고 싶은 것만 골라 주세요.</p>
       <div class="shareopts" id="shareOpts">
         <label class="checkline"><input type="checkbox" id="shItems"><span>구매 리스트<small>담은 물품과 수량, 꼭 사기·고민중 표시</small></span></label>
@@ -1617,8 +1653,8 @@ function renderInfo(){
 
     <div class="card">
       <h2>불러오기</h2>
-      <p class="desc">받은 공유 코드를 붙여 넣으세요. 새 행사로 추가할지, 지금 행사를 덮어쓸지 고를 수 있어요.</p>
-      <textarea class="inp out" id="codeIn" placeholder="BC1:… 로 시작하는 코드"></textarea>
+      <p class="desc">받은 공유 코드를 붙여 넣으세요. 새 행사로 추가할지, 지금 행사를 덮어쓸지 고를 수 있어요.${CL.on ? " BCL-로 시작하는 실시간 공유 코드는 구독으로, BCE-로 시작하는 편집 코드는 공동 편집으로 추가돼요." : ""}</p>
+      <textarea class="inp out" id="codeIn" placeholder="${CL.on ? "BC1:…, BCL-…, BCE-… 로 시작하는 코드" : "BC1:… 로 시작하는 코드"}"></textarea>
       <div class="btnrow" style="margin-top:10px">
         <button class="btn" data-act="import">코드 불러오기</button>
         <label class="btn ghost" style="position:relative">백업 파일 열기<input type="file" id="fileIn" accept=".json,.txt,application/json,text/plain" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label>
@@ -2031,6 +2067,13 @@ async function parseCode(raw){
 }
 async function doImport(raw){
   if(!raw || !raw.trim()){ toast("코드를 먼저 붙여 넣어 주세요"); return; }
+  const live = parseLive(raw);
+  if(live && !raw.trim().startsWith("{") && !/^BC1z?:/.test(raw.trim())){
+    if(!CL.on){ toast("이 화면에서는 실시간 공유 코드를 쓸 수 없어요"); return; }
+    if(live.key) await clJoinEdit(live.code, live.key); else await clSubscribe(live.code);
+    const ci = document.getElementById("codeIn"); if(ci) ci.value = "";
+    return;
+  }
   let obj;
   try{ obj = await parseCode(raw); }catch(e){ toast(e.message && /[가-힣]/.test(e.message) ? e.message : "코드가 잘렸거나 잘못됐어요"); return; }
   if(!obj || obj.app !== "boothcheck" || !obj.d){ toast("부스 체크용 코드가 아니에요"); return; }
@@ -2087,7 +2130,7 @@ function closeSheet(){
   if(!sh) return;
   sheet.classList.remove("show"); scrim.classList.remove("show");
   if(document.activeElement && sheet.contains(document.activeElement)) document.activeElement.blur();
-  sh = null; flush(); rerenderSoft();
+  sh = null; flush(); rerenderSoft(); clFlushPending();
 }
 async function tryClose(){
   if(sh && sh.kind === "bulk" && bulkHasData() && !await confirmBox("표에 적은 내용이 사라져요. 닫을까요?", "닫기", true)) return;
@@ -2382,6 +2425,7 @@ function renderBoothForm(){
   fTimeSug.addEventListener("click", e=>{ const a = e.target.closest("[data-tadd]"); if(!a) return; draft.times.push({label:a.dataset.tadd, time:""}); drawTimes(); const ins = fTimes.querySelectorAll('[data-tf="time"]'); if(ins.length) ins[ins.length-1].focus(); });
   drawTimes();
   document.getElementById("fMemo").addEventListener("input", e=>{ draft.memo = e.target.value; });
+  if(!isNew && lockedBooth(b)) lockBoothForm();
   bindDrag();
   if(isNew) setTimeout(()=>{ const n = document.getElementById("fNum"); if(n && window.matchMedia("(pointer:fine)").matches) n.focus(); }, 280);
 }
@@ -2439,6 +2483,7 @@ function renderItemForm(){
     document.querySelectorAll("#iPri button").forEach(x=>x.setAttribute("aria-pressed", String(x===t)));
   });
   sh.keepInputs = keepInputs;
+  if(lockedItem(it)) lockItemForm();
   bindDrag();
 }
 
@@ -2572,7 +2617,8 @@ function artistMenu(b, aid){
     {icon:"edit", label:"작가 정보 편집", fn:()=>openSheet({kind:"boothForm", id:b.id})}
   ];
 }
-function ctxFor(el){
+function ctxFor(el){ return lockMenu(el, ctxFor0(el)); }
+function ctxFor0(el){
   if(el.matches(".item[data-iid]")){ const b = findBooth(el.dataset.bid), i = b && b.items.find(x=>x.id===el.dataset.iid); return i ? itemMenu(b, i, el) : null; }
   if(el.matches(".crow[data-iid]")){
     const b = findBooth(el.dataset.bid), i = b && b.items.find(x=>x.id===el.dataset.iid); if(!i) return null;
@@ -3189,7 +3235,7 @@ function renderEvents(){
     <div class="sh-body">
       ${list.map(ev=>{ const cur = ev.id===LIB.current, dd = ddayOf(ev.date);
         return `<div class="evrow ${cur?"cur":""}">
-          <button class="evmain" data-act="evswitch" data-eid="${ev.id}"><span class="evn">${esc(ev.name || "이름 없는 행사")}</span><span class="evs">${ev.date ? esc(ev.date.replace(/-/g,". ")) : "날짜 미정"}  |  부스 ${ev.count||0}개${cur ? "  |  지금 보는 중" : ""}</span></button>
+          <button class="evmain" data-act="evswitch" data-eid="${ev.id}"><span class="evn">${esc(ev.name || "이름 없는 행사")}${roleBadge(ev.id)}</span><span class="evs">${ev.date ? esc(ev.date.replace(/-/g,". ")) : "날짜 미정"}  |  부스 ${ev.count||0}개${cur ? "  |  지금 보는 중" : ""}</span></button>
           ${dd ? `<span class="dday sm ${dd.c}">${dd.t}</span>` : ""}
           <button class="iconbtn danger" data-act="evdel" data-eid="${ev.id}" aria-label="행사 삭제">${ICON_TRASH}</button>
         </div>`; }).join("")}
@@ -3212,13 +3258,13 @@ function switchEvent(id){
   if(id === LIB.current){ return; }
   flush();
   LIB.current = id; saveIndex();
-  S = loadEvent(id); resetUI();
-  renderTop(); setView(view);
+  S = loadEvent(id); resetUI(); clListenPub();
+  renderTop(); setView(view); clFlushPending();
 }
 function addEvent(st){
   const id = uid();
-  memEvents[id] = st; lsSet(EV_PREFIX + id, JSON.stringify(st));
-  LIB.list.push({id, ...evMeta(st)}); saveIndex();
+  memEvents[id] = st; lastJs[id] = JSON.stringify(st); lsSet(EV_PREFIX + id, lastJs[id]);
+  LIB.list.push({id, ...evMeta(st), mod:Date.now()}); saveIndex(); clChanged(id);
   return id;
 }
 
@@ -3295,6 +3341,713 @@ function ckFoldInfo(unpaid){
   const mm = document.getElementById("moneyMini"); if(mm) mm.innerHTML = UIP.ckBar ? "" : `남은 결제 <b>${won(ckUnpaid)}</b>`;
 }
 
+/* ---------- cloud: Google 로그인 동기화 + 실시간 공유 (Firebase) ---------- */
+const FB_VER = "12.19.0";
+const FB_CFG = (()=>{ const c = window.BOOTHCHECK_FIREBASE; return c && typeof c === "object" && c.apiKey && c.projectId ? c : null; })();
+const CL = {on:!!FB_CFG, failed:false, A:null, F:null, auth:null, db:null, user:null, authKnown:false, syncing:false, inflight:0, lastSync:0, err:"",
+  userT:{}, pubT:{}, pubBusy:{}, pubAgain:{}, pubInfo:{}, unsubUser:null, unsubPub:null, pubKey:"", pending:{}, ed:{}, bigWarned:false, gen:0};
+const CODE_ABC = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+const PB_PREFIX = "boothcheck.pb.";
+function genCode(n){ const a = new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a, x=>CODE_ABC[x % 32]).join(""); }
+function entOf(id){ return LIB.list.find(x=>x.id===id) || null; }
+function linkOf(id){ const e = entOf(id); return e && e.link && e.link.code ? e.link : null; }
+function roleOf(id){ const l = linkOf(id); return l ? l.role : ""; }
+function isSub(){ return roleOf(LIB.current) === "sub"; }
+function roleName(r){ return r === "sub" ? "구독" : r === "own" ? "공유 중" : r === "edit" ? "공동 편집" : ""; }
+function roleBadge(id){ const r = roleOf(id); return r ? `<span class="np lk ${r}">${roleName(r)}</span>` : ""; }
+function getBase(id){
+  if(id in pbMem) return pbMem[id];
+  let v = null; try{ const r = lsGet(PB_PREFIX + id); if(r) v = JSON.parse(r); }catch(e){}
+  return (pbMem[id] = v && v.p ? v : null);
+}
+const SB_PREFIX = "boothcheck.sb.", sbMem = {};
+function getSB(id){ if(id in sbMem) return sbMem[id]; let v = null; try{ const r = lsGet(SB_PREFIX + id); if(r) v = JSON.parse(r); }catch(e){} return (sbMem[id] = v); }
+function setSB(id, json){ if(json){ try{ sbMem[id] = JSON.parse(json); }catch(e){ sbMem[id] = null; } lsSet(SB_PREFIX + id, json); } else { sbMem[id] = null; lsDel(SB_PREFIX + id); } }
+function setBase(id, b){ pbMem[id] = b || null; if(b) lsSet(PB_PREFIX + id, JSON.stringify(b)); else lsDel(PB_PREFIX + id); }
+function setLink(id, link){
+  const e = entOf(id); if(!e) return;
+  e.link = link || null; e.mod = Date.now(); if(!link) setBase(id, null);
+  saveIndex(); clQueueUser(id, 300);
+}
+let srcCache = {b:null, booths:null, items:null};
+function srcSets(){
+  const base = isSub() ? getBase(LIB.current) : null; if(!base) return null;
+  if(srcCache.b !== base){
+    const bs = new Set(), is = new Set();
+    for(const b of base.p.booths){ bs.add(b.id); for(const i of b.items) is.add(i.id); }
+    srcCache = {b:base, booths:bs, items:is};
+  }
+  return srcCache;
+}
+function lockedBooth(b){ const s = srcSets(); return !!(s && b && s.booths.has(b.id)); }
+function lockedItem(i){ const s = srcSets(); return !!(s && i && s.items.has(i.id)); }
+function isBlank(st){ return !st.event.name && !st.booths.length && !st.people.length && !st.event.schedule.length; }
+
+/* 공유되는 부분만 뽑기: 행사 정보·구역·종류·배치도·부스·작가·물품(이름·가격). 구매 체크·수량·메모·태그·지인은 빠짐 */
+function clone(o){ return o == null ? o : JSON.parse(JSON.stringify(o)); }
+function eqJ(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
+function shareProj(st){
+  const e = st.event;
+  return {event:{name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, schedule:clone(e.schedule)},
+    sections:[...st.sections], cats:[...st.cats], halls:clone(st.halls), marks:clone(st.marks),
+    booths:st.booths.map(b=>({id:b.id, section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, pickup:b.pickup||"", times:clone(b.times||[]), pos:clone(b.pos||null),
+      artists:(b.artists||[]).map(a=>({id:a.id, nick:a.nick||"", site:a.site||"", info:a.info||"", preFrom:a.preFrom||"", preTo:a.preTo||"", preToTime:a.preToTime||"", imgs:[...(a.imgs||[])]})),
+      items:(b.items||[]).map(i=>({id:i.id, name:i.name, price:i.price||0, type:i.type, cat:i.cat||"", artist:i.artist||"", sample:i.sample||""}))}))};
+}
+function sanitizeProj(p){
+  if(!p || typeof p !== "object" || !Array.isArray(p.booths)) throw new Error("bad data");
+  const st = normalize({event:p.event, sections:p.sections, cats:p.cats, halls:p.halls, marks:p.marks, booths:p.booths});
+  if(!(Array.isArray(p.halls) && p.halls.length)){ st.halls = []; st.marks = []; for(const b of st.booths) b.pos = null; }
+  return shareProj(st);
+}
+function itemPersonal(i){ return !!(i && (i.st > 0 || String(i.note || "").trim() || i.must || !i.maybe)); }
+function boothPersonal(b){ return !!(b && (String(b.memo || "").trim() || (b.tags || []).length || b.isFriend || (b.friends || []).length || (b.items || []).some(itemPersonal))); }
+function mergeIds(local, remote, prev, keepLocal, upd, keepFn){
+  const lm = new Map((local||[]).map(x=>[x.id, x])), rs = new Set(remote.map(x=>x.id)), ps = new Set((prev||[]).map(x=>x.id));
+  const out = remote.map(r=>upd(lm.get(r.id), r));
+  if(keepLocal) for(const l of (local||[])) if(!rs.has(l.id) && (!ps.has(l.id) || (keepFn && keepFn(l)))) out.push(l);
+  return out;
+}
+function mergeStrs(local, remote, prev, keepLocal){
+  const out = [...remote];
+  if(keepLocal) for(const s of (local||[])) if(!out.includes(s) && !(prev||[]).includes(s)) out.push(s);
+  return out;
+}
+/* P(공유본)를 st에 덮어씀. 개인 정보(구매 체크·수량·메모·태그·지인)는 유지. keepLocal이면 원본에 없던 내 부스·물품도 유지 */
+function applyShared(st, P, prev, keepLocal){
+  const e = P.event;
+  Object.assign(st.event, {name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, schedule:clone(e.schedule)});
+  st.sections = mergeStrs(st.sections, P.sections, prev && prev.sections, keepLocal);
+  st.cats = mergeStrs(st.cats, P.cats, prev && prev.cats, keepLocal);
+  st.halls = mergeIds(st.halls, P.halls, prev && prev.halls, keepLocal, (l, r)=>Object.assign(l || {}, clone(r)));
+  st.marks = mergeIds(st.marks, P.marks, prev && prev.marks, keepLocal, (l, r)=>Object.assign(l || {}, clone(r)));
+  const pb = new Map(((prev && prev.booths) || []).map(b=>[b.id, b]));
+  st.booths = mergeIds(st.booths, P.booths, prev && prev.booths, keepLocal, (l, r)=>{
+    const b = l || {id:r.id, memo:"", tags:[], isFriend:false, friends:[], items:[]};
+    Object.assign(b, {section:r.section, num:r.num, half:r.half, span:r.span, size:r.half ? 1 : 2*r.span, name:r.name, pickup:r.pickup, times:clone(r.times), pos:clone(r.pos)});
+    const la = new Map((b.artists||[]).map(a=>[a.id, a]));
+    b.artists = r.artists.map(ra=>Object.assign(la.get(ra.id) || {memo:"", hidden:false}, clone(ra)));
+    const pv = pb.get(r.id);
+    b.items = mergeIds(b.items, r.items, pv && pv.items, keepLocal, (li, ri)=>Object.assign(li || {st:0, want:1, must:false, maybe:true, note:""}, clone(ri)), itemPersonal);
+    return b;
+  }, boothPersonal);
+  const hs = new Set(st.halls.map(h=>h.id));
+  for(const b of st.booths) if(b.pos && !hs.has(b.pos.hall)) b.pos = null;
+  if(keepLocal) for(const b of st.booths) if(b.section && !st.sections.includes(b.section)) st.sections.push(b.section);
+}
+/* 3-way 병합: base 이후 내가 바꾼 칸은 내 것, 안 바꾼 칸은 상대 것 */
+function m3leaf(b, m, t){ return b !== undefined && eqJ(b, m) ? t : m; }
+function m3obj(b, m, t, skip){
+  const o = {};
+  for(const k of Object.keys(t)) if(k !== skip) o[k] = m3leaf(b ? b[k] : undefined, m[k], t[k]);
+  for(const k of Object.keys(m)) if(k !== skip && !(k in o)) o[k] = m[k];
+  return o;
+}
+function m3list(b, m, t, fn){
+  const bm = new Map((b||[]).map(x=>[x.id, x])), mm = new Map(m.map(x=>[x.id, x])), tm = new Map(t.map(x=>[x.id, x]));
+  const pick = id=>{
+    const bx = bm.get(id), mx = mm.get(id), tx = tm.get(id);
+    if(mx && tx) return bx ? fn(bx, mx, tx) : mx;
+    if(mx) return bx && eqJ(bx, mx) ? null : mx;
+    if(tx) return bx && eqJ(bx, tx) ? null : tx;
+    return null;
+  };
+  const out = [];
+  for(const x of t){ const r = pick(x.id); if(r) out.push(r); }
+  for(const x of m) if(!tm.has(x.id)){ const r = pick(x.id); if(r) out.push(r); }
+  return out;
+}
+function m3booth(b, m, t){ const o = m3obj(b, m, t, "items"); o.items = m3list(b && b.items, m.items, t.items, (x,y,z)=>m3obj(x,y,z)); return o; }
+function merge3(b, m, t){
+  b = b || {};
+  const ob = (x,y,z)=>m3obj(x,y,z);
+  return {event:m3obj(b.event, m.event, t.event), sections:m3leaf(b.sections, m.sections, t.sections), cats:m3leaf(b.cats, m.cats, t.cats),
+    halls:m3list(b.halls, m.halls, t.halls, ob), marks:m3list(b.marks, m.marks, t.marks, ob), booths:m3list(b.booths, m.booths, t.booths, m3booth)};
+}
+function isObj(x){ return !!x && typeof x === "object" && !Array.isArray(x); }
+function isIdList(a){ return Array.isArray(a) && a.length > 0 && a.every(x=>isObj(x) && typeof x.id === "string"); }
+function m3deep(b, m, t){
+  if(eqJ(m, t)) return m;
+  if(b !== undefined && eqJ(b, m)) return t;
+  if(b !== undefined && eqJ(b, t)) return m;
+  if(isObj(m) && isObj(t)){
+    const o = {};
+    for(const k of new Set([...Object.keys(t), ...Object.keys(m)])){
+      if(!(k in m)) o[k] = t[k]; else if(!(k in t)) o[k] = m[k];
+      else o[k] = m3deep(isObj(b) ? b[k] : undefined, m[k], t[k]);
+    }
+    return o;
+  }
+  if(Array.isArray(m) && Array.isArray(t) && (isIdList(m) || isIdList(t)) && (isIdList(m) || !m.length) && (isIdList(t) || !t.length))
+    return m3list(Array.isArray(b) ? b : undefined, m, t, (x,y,z)=>m3deep(x,y,z));
+  return m;
+}
+function projSig(p){ const by = (a)=>a.slice().sort((x,y)=>x.id < y.id ? -1 : x.id > y.id ? 1 : 0); return JSON.stringify({...p, halls:by(p.halls), marks:by(p.marks), booths:by(p.booths).map(b=>({...b, items:by(b.items)}))}); }
+/* 구독한 행사: 원본 정보를 고치면 저장할 때 원래대로 돌림 */
+function guardShared(){
+  if(!isSub()) return;
+  const base = getBase(LIB.current); if(!base) return;
+  const before = projSig(shareProj(S));
+  applyShared(S, base.p, base.p, true);
+  if(projSig(shareProj(S)) !== before){
+    toast("구독한 행사라 원본 정보는 바꿀 수 없어요");
+    setTimeout(()=>{ rerenderSoft(); if(sh && sh.kind === "booth") renderSheet(); }, 0);
+  }
+}
+function clChanged(id){
+  if(!CL.on || CL.quiet) return;
+  clQueueUser(id);
+  const r = roleOf(id); if(r === "own" || r === "edit") clQueuePub(id);
+}
+
+/* encode: JSON → deflate → Firestore Bytes */
+async function zEnc(obj){
+  const bytes = new TextEncoder().encode(JSON.stringify(obj));
+  let z = bytes, c = 0;
+  if(typeof CompressionStream !== "undefined"){ try{ z = await pipe(bytes, CompressionStream, "deflate-raw"); c = 1; }catch(e){ z = bytes; c = 0; } }
+  return {z:CL.F.Bytes.fromUint8Array(z), c, size:z.length};
+}
+async function zDec(d){
+  if(!d || !d.z) throw new Error("no data");
+  let bytes = d.z.toUint8Array();
+  if(d.c) bytes = await pipe(bytes, DecompressionStream, "deflate-raw");
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+function clErrText(e){
+  const c = (e && e.code) || "";
+  if(/permission-denied/.test(c)) return "권한이 없어요";
+  if(/unavailable|failed-precondition|network/.test(c)) return "인터넷에 연결되면 다시 시도할게요";
+  if(/resource-exhausted/.test(c)) return "오늘 무료 사용량을 넘었어요. 내일 다시 시도해 주세요";
+  if(/unauthenticated/.test(c)) return "다시 로그인해 주세요";
+  if(c === "bc/big") return "행사 데이터가 너무 커서 올리지 못했어요";
+  return "문제가 생겼어요" + (c ? ` (${c})` : "");
+}
+function clErr(e, quiet){ CL.err = clErrText(e); if(!quiet) toast(CL.err); clRefreshUI(); }
+function fmtWhen(ms){
+  if(!ms) return "";
+  const d = new Date(ms), n = new Date(), hm = String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+  return d.toDateString() === n.toDateString() ? hm : `${d.getMonth()+1}/${d.getDate()} ${hm}`;
+}
+function viewerOpen(){ const v = document.getElementById("imgv"); return !!(v && v.classList.contains("show")); }
+
+/* ---- init / auth ---- */
+async function clInit(){
+  if(!CL.on) return;
+  try{
+    const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
+    const [ap, A, F] = await Promise.all([import(base + "firebase-app.js"), import(base + "firebase-auth.js"), import(base + "firebase-firestore.js")]);
+    const app = ap.initializeApp(FB_CFG);
+    CL.A = A; CL.F = F; CL.auth = A.getAuth(app); CL.db = F.getFirestore(app);
+  }catch(e){ CL.failed = true; clRefreshUI(); return; }
+  clListenPub();
+  let first = true;
+  CL.A.onAuthStateChanged(CL.auth, u=>{ clOnUser(u); if(first){ first = false; clHash(); } });
+  window.addEventListener("online", ()=>{ for(const e of LIB.list){ const r = roleOf(e.id); if(r === "own" || r === "edit") clQueuePub(e.id, 500); } if(CL.user) clResync(true); });
+}
+function inAppBrowser(){ return /KAKAOTALK|NAVER\(inapp|Instagram|FBAN|FBAV|\bLine\/|DaumApps|everytimeApp/i.test(navigator.userAgent); }
+function clLogin(){
+  if(/KAKAOTALK/i.test(navigator.userAgent)){
+    confirmBox("카카오톡 안의 브라우저에서는 Google 로그인이 막혀 있어요.\n기본 브라우저로 열까요?", "브라우저로 열기").then(ok=>{ if(ok) location.href = "kakaotalk://web/openExternal?url=" + encodeURIComponent(location.href); });
+    return;
+  }
+  if(inAppBrowser()){ toast("앱 안의 브라우저에서는 Google 로그인이 안 돼요. 크롬이나 사파리로 열어 주세요"); return; }
+  if(!CL.auth){ toast(CL.failed ? "로그인 기능을 불러오지 못했어요" : "잠시 후 다시 눌러 주세요"); return; }
+  CL.A.signInWithPopup(CL.auth, new CL.A.GoogleAuthProvider()).then(()=>toast("로그인했어요")).catch(e=>{
+    const c = (e && e.code) || "";
+    if(/popup-closed-by-user|cancelled-popup-request/.test(c)) return;
+    if(/popup-blocked/.test(c)) toast("팝업이 막혔어요. 이 사이트의 팝업을 허용하고 다시 눌러 주세요");
+    else if(/unauthorized-domain/.test(c)) toast("Firebase의 ‘승인된 도메인’에 이 사이트 주소가 없어요");
+    else if(/operation-not-allowed/.test(c)) toast("Firebase에서 Google 로그인이 꺼져 있어요");
+    else toast("로그인하지 못했어요" + (c ? ` (${c})` : ""));
+  });
+}
+async function clLogout(){
+  if(!CL.auth || !CL.user) return;
+  const ch = await choiceBox("로그아웃할까요?\n이 기기에 있는 행사는 그대로 남아요. 다른 사람과 같이 쓰는 기기라면 이 기기에서도 지우세요.", [{label:"로그아웃", v:"out", cls:"pre"}, {label:"이 기기에서도 지우기", v:"wipe", cls:"danger"}]);
+  if(!ch) return;
+  const me = CL.user.uid;
+  for(const id of Object.keys(CL.userT)){ clearTimeout(CL.userT[id]); }
+  CL.userT = {};
+  if(ch === "wipe"){ for(const e of LIB.list.slice()) if(e.acct === me) removeLocal(e.id); }
+  try{ await CL.A.signOut(CL.auth); }catch(e){}
+  toast(ch === "wipe" ? "로그아웃하고 이 기기에서 지웠어요" : "로그아웃했어요");
+}
+function clOnUser(u){
+  CL.authKnown = true;
+  CL.user = u ? {uid:u.uid, name:u.displayName || (u.email ? u.email.split("@")[0] : ""), email:u.email || "", photo:u.photoURL || ""} : null;
+  CL.gen++;
+  if(CL.unsubUser){ try{ CL.unsubUser(); }catch(e){} CL.unsubUser = null; }
+  CL.err = "";
+  if(CL.user) clStartUserSync();
+  clRefreshUI();
+}
+function clNeedLogin(){
+  if(CL.user) return true;
+  toast(CL.on ? "먼저 ‘Google로 로그인’을 눌러 주세요" : "이 화면에서는 로그인 기능을 쓸 수 없어요");
+  const a = document.getElementById("clAcc"); if(a) a.scrollIntoView({behavior:"smooth", block:"center"});
+  return false;
+}
+
+/* ---- 내 행사 동기화: users/{uid}/ev/{행사id} ---- */
+function evDocRef(id){ return CL.F.doc(CL.db, "users", CL.user.uid, "ev", id); }
+function removeLocal(id){
+  if(id === LIB.current){ clearTimeout(saveT); saveT = null; if(sh){ sheet.classList.remove("show"); scrim.classList.remove("show"); sh = null; } }
+  LIB.list = LIB.list.filter(x=>x.id!==id); lsDel(EV_PREFIX + id); delete memEvents[id]; delete lastJs[id]; setBase(id, null); setSB(id, null);
+  if(!LIB.list.length){ const nid = uid(), st = defaultState(); memEvents[nid] = st; lastJs[nid] = JSON.stringify(st); lsSet(EV_PREFIX + nid, lastJs[nid]); LIB.list.push({id:nid, ...evMeta(st)}); }
+  if(id === LIB.current){ LIB.current = LIB.list[0].id; saveIndex(); S = loadEvent(LIB.current); resetUI(); renderTop(); setView(view); clListenPub(); }
+  else saveIndex();
+}
+async function clStartUserSync(){
+  if(!CL.user || !CL.db) return;
+  const gen = CL.gen;
+  CL.syncing = true; clRefreshUI();
+  try{
+    const snap = await CL.F.getDocs(CL.F.collection(CL.db, "users", CL.user.uid, "ev"));
+    if(gen !== CL.gen) return;
+    const remote = []; snap.forEach(d=>remote.push({id:d.id, ...d.data()}));
+    for(const r of remote) await clApplyUserDoc(r);
+    if(gen !== CL.gen) return;
+    const ids = new Set(remote.map(r=>r.id));
+    if(remote.some(r=>!r.del)) for(const e of LIB.list.slice()) if(!ids.has(e.id) && !e.cu && !e.link && isBlank(loadEvent(e.id))) removeLocal(e.id);
+    for(const e of LIB.list) if(!ids.has(e.id) || (e.mod||0) > (e.cu||0)) clQueueUser(e.id, 0);
+    CL.unsubUser = CL.F.onSnapshot(CL.F.collection(CL.db, "users", CL.user.uid, "ev"), qs=>{
+      if(gen !== CL.gen) return;
+      qs.docChanges().forEach(ch=>{ if(ch.type === "removed" || ch.doc.metadata.hasPendingWrites) return; clApplyUserDoc({id:ch.doc.id, ...ch.doc.data()}); });
+    }, e=>clErr(e, true));
+    CL.lastSync = Date.now(); CL.err = "";
+  }catch(e){ clErr(e, true); }
+  CL.syncing = false; clRefreshUI();
+  if(sh && sh.kind === "events") renderEvents();
+  for(const e of LIB.list){ const r = roleOf(e.id); if(r === "own" || r === "edit") clQueuePub(e.id, 800); }
+}
+async function clApplyUserDoc(r){
+  if(!CL.user) return;
+  const id = r.id, ent0 = entOf(id);
+  if(ent0 && ent0.acct && ent0.acct !== CL.user.uid) return;
+  if(r.del){ if(ent0 && (ent0.mod||0) <= (r.upd||0)){ removeLocal(id); if(sh && sh.kind === "events") renderEvents(); } return; }
+  if(ent0 && (r.upd||0) <= (ent0.cu||0)) return;
+  if(id === LIB.current && (sh || viewerOpen())){ CL.pending[id] = r; return; }
+  let payload; try{ payload = await zDec(r); }catch(e){ return; }
+  if(!CL.user) return;
+  if(id === LIB.current && (sh || viewerOpen())){ CL.pending[id] = r; return; }
+  if(id === LIB.current && saveT) flush();
+  let ent = entOf(id);
+  if(ent && (r.upd||0) <= (ent.cu||0)) return;
+  const R = normalize(payload.s), rjs = JSON.stringify(R);
+  const dirty = !!ent && (ent.mod||0) > (ent.cu||0);
+  let st = R;
+  if(dirty){
+    const local = id === LIB.current ? S : loadEvent(id), sb = getSB(id);
+    st = normalize(m3deep(sb || undefined, clone(local), clone(R)));
+  }
+  const js = JSON.stringify(st);
+  memEvents[id] = st; lastJs[id] = js; lsSet(EV_PREFIX + id, js);
+  if(!ent){ LIB.list.push({id}); ent = entOf(id); }
+  const rl = payload.l && payload.l.code ? payload.l : null;
+  const link = dirty && ent.link !== undefined ? ent.link : rl;
+  Object.assign(ent, evMeta(st), {link: link && link.code ? link : null, cu:r.upd, acct:CL.user.uid});
+  ent.mod = dirty && js !== rjs ? Date.now() : r.upd;
+  setSB(id, rjs);
+  const lb = getBase(id), rb = payload.b && payload.b.p ? payload.b : null;
+  if(!ent.link) setBase(id, null);
+  else if(!dirty || !lb || (rb && (rb.v||0) > (lb.v||0))) setBase(id, rb);
+  saveIndex();
+  if(ent.mod > ent.cu) clQueueUser(id, 300);
+  if(id === LIB.current){ S = st; srcCache = {b:null}; renderTop(); renderView(); clListenPub(); }
+  else if(sh && sh.kind === "events") renderEvents();
+  CL.lastSync = Date.now(); clRefreshUI();
+}
+function clFlushPending(){
+  for(const id of Object.keys(CL.pending)){ const r = CL.pending[id]; delete CL.pending[id]; clApplyUserDoc(r); }
+}
+function clQueueUser(id, ms){
+  if(!CL.user) return;
+  clearTimeout(CL.userT[id]);
+  CL.userT[id] = setTimeout(()=>{ delete CL.userT[id]; clPushUser(id); }, ms == null ? 1500 : ms);
+}
+async function clPushUser(id){
+  const ent = entOf(id); if(!ent || !CL.user || !CL.db) return;
+  if(ent.acct && ent.acct !== CL.user.uid) return;
+  if(id === LIB.current && saveT) flush();
+  const st = loadEvent(id);
+  if(!ent.cu && !ent.link && isBlank(st)) return;
+  if(!ent.mod) ent.mod = Date.now();
+  const upd = ent.mod, me = CL.user.uid, sj = JSON.stringify(st);
+  CL.inflight++; clRefreshUI();
+  try{
+    const enc = await zEnc({s:JSON.parse(sj), l:ent.link || null, b:getBase(id)});
+    if(enc.size > 1000000) throw {code:"bc/big"};
+    await CL.F.setDoc(evDocRef(id), {z:enc.z, c:enc.c, upd, name:st.event.name || "", del:false});
+    if(CL.user && CL.user.uid === me){ if((ent.cu||0) < upd){ ent.cu = upd; setSB(id, sj); } ent.acct = me; saveIndex(); CL.lastSync = Date.now(); CL.err = ""; }
+  }catch(e){
+    if(e && e.code === "bc/big"){ if(!CL.bigWarned){ CL.bigWarned = true; toast("행사 데이터가 너무 커서 계정에 저장하지 못했어요"); } }
+    else clErr(e, true);
+  }
+  CL.inflight--; clRefreshUI();
+}
+async function clResync(quiet){
+  if(!CL.user) return;
+  CL.gen++; if(CL.unsubUser){ try{ CL.unsubUser(); }catch(e){} CL.unsubUser = null; }
+  await clStartUserSync();
+  if(!quiet) toast(CL.err ? CL.err : "동기화했어요");
+}
+function clDelNote(id){
+  const r = roleOf(id), e = entOf(id); let s = "";
+  if(r === "own") s += "\n실시간 공유도 끝나서 구독한 사람들은 더 이상 업데이트를 받지 못해요.";
+  if(r === "edit") s += "\n공동 편집에서도 빠져요.";
+  if(CL.user && e && e.cu) s += "\n로그인한 다른 기기에서도 지워져요.";
+  return s;
+}
+function clDeleted(id){
+  const e = entOf(id), l = linkOf(id);
+  if(!CL.db) return;
+  if(l && l.role === "own" && CL.user) clStopRemote(l.code).catch(()=>{});
+  if(l && l.role === "edit" && CL.user) CL.F.deleteDoc(CL.F.doc(CL.db, "pub", l.code, "editors", CL.user.uid)).catch(()=>{});
+  if(CL.user && e && e.cu && (!e.acct || e.acct === CL.user.uid)) CL.F.setDoc(evDocRef(id), {del:true, upd:Date.now()}).catch(e2=>clErr(e2, true));
+  clearTimeout(CL.userT[id]); delete CL.userT[id];
+}
+
+/* ---- 실시간 공유: pub/{코드} ---- */
+function pubRef(code){ return CL.F.doc(CL.db, "pub", code); }
+function clListenPub(){
+  if(CL.unsubPub){ try{ CL.unsubPub(); }catch(e){} CL.unsubPub = null; }
+  const id = LIB.current, l = linkOf(id);
+  CL.pubKey = l ? id + ":" + l.code : "";
+  srcCache = {b:null};
+  if(!l || !CL.db) return;
+  const key = CL.pubKey;
+  CL.unsubPub = CL.F.onSnapshot(pubRef(l.code), snap=>{ if(CL.pubKey === key) clOnPub(id, l.code, snap); }, e=>clErr(e, true));
+}
+async function clOnPub(id, code, snap){
+  const l = linkOf(id); if(!l || l.code !== code) return;
+  if(snap.metadata && snap.metadata.hasPendingWrites) return;
+  if(!snap.exists() || snap.data().closed){
+    if(!snap.exists() && snap.metadata && snap.metadata.fromCache) return;
+    setLink(id, null); if(id === LIB.current){ clListenPub(); renderTop(); rerenderSoft(); clRefreshUI(); }
+    toast(l.role === "own" ? "실시간 공유가 꺼졌어요" : "원본 공유가 끝나서 더 이상 업데이트되지 않아요. 지금 내용은 그대로 남아요.");
+    return;
+  }
+  const d = snap.data();
+  CL.pubInfo[id] = {ver:d.ver, upd:d.upd, name:d.name, ownerName:d.ownerName || "", owner:d.owner};
+  const base0 = getBase(id);
+  if(base0 && (d.ver||0) <= (base0.v||0)){ clRefreshUI(); return; }
+  let R; try{ R = sanitizeProj(await zDec(d)); }catch(e){ return; }
+  const cur = getBase(id); if(cur && (d.ver||0) <= (cur.v||0)) return;
+  const l2 = linkOf(id); if(!l2 || l2.code !== code) return;
+  if(l2.role === "sub"){
+    setBase(id, {v:d.ver, p:R});
+    applyTo(id, R, cur ? cur.p : null, true);
+  } else {
+    const P = shareProj(id === LIB.current ? S : loadEvent(id));
+    const mine = !!cur && !eqJ(P, cur.p);
+    const target = mine ? merge3(cur.p, P, R) : (cur ? R : merge3(null, P, R));
+    setBase(id, {v:d.ver, p:R});
+    applyTo(id, target, cur ? cur.p : null, false);
+    if(!eqJ(target, R)) clQueuePub(id, 300);
+  }
+  clRefreshUI();
+}
+function applyTo(id, P, prev, keepLocal){
+  if(id === LIB.current){
+    srcCache = {b:null};
+    applyShared(S, P, prev, keepLocal);
+    CL.quiet = true; try{ flush(); }finally{ CL.quiet = false; }
+    if(sh && sh.kind === "booth") renderSheet();
+    rerenderSoft();
+    if(view === "info" && !(document.activeElement && main.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) renderInfo();
+  } else {
+    const st = loadEvent(id); applyShared(st, P, prev, keepLocal);
+    const js = JSON.stringify(st); lsSet(EV_PREFIX + id, js);
+    lastJs[id] = js;
+    const e = entOf(id); if(e){ Object.assign(e, evMeta(st)); saveIndex(); }
+  }
+}
+function clQueuePub(id, ms){
+  clearTimeout(CL.pubT[id]);
+  CL.pubT[id] = setTimeout(()=>{ delete CL.pubT[id]; clPushPub(id); }, ms == null ? 1200 : ms);
+}
+async function clPushPub(id){
+  const l = linkOf(id); if(!l || (l.role !== "own" && l.role !== "edit") || !CL.db) return;
+  if(!CL.user){ clRefreshUI(); return; }
+  if(CL.pubBusy[id]){ CL.pubAgain[id] = true; return; }
+  if(id === LIB.current && saveT) flush();
+  const base = getBase(id), P = shareProj(id === LIB.current ? S : loadEvent(id));
+  if(base && eqJ(P, base.p)) return;
+  CL.pubBusy[id] = true; CL.inflight++; clRefreshUI();
+  try{
+    const ref = pubRef(l.code); let out = null;
+    await CL.F.runTransaction(CL.db, async tx=>{
+      const snap = await tx.get(ref);
+      if(!snap.exists() || snap.data().closed) throw {code:"bc/gone"};
+      const d = snap.data();
+      const R = (base && d.ver === base.v) ? null : sanitizeProj(await zDec(d));
+      const merged = R ? merge3(base ? base.p : null, P, R) : P;
+      const enc = await zEnc(merged);
+      if(enc.size > 1000000) throw {code:"bc/big"};
+      const v = (d.ver||0) + 1;
+      tx.update(ref, {z:enc.z, c:enc.c, ver:v, upd:Date.now(), by:CL.user.uid, name:merged.event.name || ""});
+      out = {v, p:merged};
+    });
+    const prev = getBase(id);
+    if(!prev || (out.v||0) > (prev.v||0)) setBase(id, out);
+    CL.pubInfo[id] = Object.assign(CL.pubInfo[id] || {}, {ver:out.v, upd:Date.now()});
+    const nowP = shareProj(id === LIB.current ? S : loadEvent(id));
+    if(!eqJ(out.p, nowP)) applyTo(id, merge3(P, nowP, out.p), prev ? prev.p : null, false);
+    clQueueUser(id);
+    CL.err = "";
+  }catch(e){
+    const c = e && e.code || "";
+    if(c === "bc/gone"){ setLink(id, null); if(id === LIB.current){ clListenPub(); renderTop(); } toast("실시간 공유가 이미 끝난 행사예요"); }
+    else if(/permission-denied/.test(c) && l.role === "edit"){ setLink(id, {role:"sub", code:l.code}); if(id === LIB.current){ clListenPub(); flush(); renderTop(); rerenderSoft(); } toast("편집 권한이 없어져서 구독으로 바뀌었어요"); }
+    else { clErr(e, true); if(/unavailable|failed-precondition|network|aborted|deadline/.test(c)) clQueuePub(id, 15000); }
+  }
+  CL.pubBusy[id] = false; CL.inflight--; clRefreshUI();
+  if(CL.pubAgain[id]){ CL.pubAgain[id] = false; clQueuePub(id, 300); }
+}
+async function clStartShare(){
+  if(!clNeedLogin() || !CL.db) return;
+  const id = LIB.current; if(linkOf(id)) return;
+  flush();
+  if(!S.booths.length && !await confirmBox("아직 부스가 없어요. 그래도 실시간 공유를 시작할까요?", "시작")) return;
+  const P = shareProj(S), code = genCode(8);
+  try{
+    const enc = await zEnc(P); if(enc.size > 1000000) throw {code:"bc/big"};
+    await CL.F.setDoc(pubRef(code), {owner:CL.user.uid, ownerName:CL.user.name || "", name:P.event.name || "", z:enc.z, c:enc.c, ver:1, upd:Date.now(), by:CL.user.uid});
+    setBase(id, {v:1, p:P}); setLink(id, {role:"own", code});
+    clListenPub(); renderTop(); if(view === "info") renderInfo();
+    toast("실시간 공유를 시작했어요. 코드를 친구에게 보내 주세요");
+  }catch(e){ clErr(e); }
+}
+async function clStopRemote(code){
+  const ref = pubRef(code);
+  await CL.F.runTransaction(CL.db, async tx=>{
+    const snap = await tx.get(ref);
+    if(!snap.exists() || snap.data().closed) return;
+    tx.update(ref, {closed:true, ver:(snap.data().ver||0) + 1, upd:Date.now(), by:CL.user.uid});
+  });
+  try{ const qs = await CL.F.getDocs(CL.F.collection(CL.db, "pub", code, "editors")); const ds = []; qs.forEach(d=>ds.push(CL.F.deleteDoc(d.ref))); await Promise.all(ds); }catch(e){}
+  try{ await CL.F.deleteDoc(CL.F.doc(CL.db, "pubkeys", code)); }catch(e){}
+}
+async function clStopShare(){
+  const id = LIB.current, l = linkOf(id); if(!l || l.role !== "own") return;
+  if(!clNeedLogin()) return;
+  if(!await confirmBox("실시간 공유를 끝낼까요?\n구독한 사람과 공동 편집자에게는 지금 내용이 남지만, 더 이상 업데이트되지 않아요. 같은 코드는 다시 쓸 수 없어요.", "공유 끝내기", true)) return;
+  try{ await clStopRemote(l.code); setLink(id, null); delete CL.ed[l.code]; clListenPub(); renderTop(); if(view === "info") renderInfo(); toast("실시간 공유를 끝냈어요"); }
+  catch(e){ clErr(e); }
+}
+async function clUnsub(){
+  const id = LIB.current, l = linkOf(id); if(!l || l.role !== "sub") return;
+  if(!await confirmBox("구독을 끊을까요?\n지금 내용은 내 행사로 남고 자유롭게 고칠 수 있어요. 원본이 바뀌어도 더 이상 업데이트되지 않아요.", "구독 끊기", true)) return;
+  setLink(id, null); clListenPub(); renderTop(); rerenderSoft(); if(view === "info") renderInfo(); toast("구독을 끊었어요. 이제 내 행사예요");
+}
+async function clLeave(){
+  const id = LIB.current, l = linkOf(id); if(!l || l.role !== "edit") return;
+  if(!await confirmBox("공동 편집을 그만둘까요?\n이 행사는 구독으로 바뀌어서 원본 업데이트는 계속 받아요.", "그만두기", true)) return;
+  try{ if(CL.user) await CL.F.deleteDoc(CL.F.doc(CL.db, "pub", l.code, "editors", CL.user.uid)); }catch(e){}
+  setLink(id, {role:"sub", code:l.code}); clListenPub(); flush(); renderTop(); rerenderSoft(); if(view === "info") renderInfo(); toast("구독으로 바꿨어요");
+}
+function parseLive(raw){
+  const s = String(raw || "").trim(), C = "([A-Za-z0-9]{8})", K = "([A-Za-z0-9]{12})";
+  let m = s.match(new RegExp("(?:BCE-|[#&?]e=)" + C + "-" + K + "(?![A-Za-z0-9])", "i")); if(m) return {code:m[1].toUpperCase(), key:m[2].toUpperCase()};
+  m = s.match(new RegExp("(?:BCL-|[#&?]s=)" + C + "(?![A-Za-z0-9])", "i")); if(m) return {code:m[1].toUpperCase()};
+  return null;
+}
+function clHash(){
+  const live = parseLive(location.hash); if(!live) return;
+  try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){}
+  setTimeout(()=>{ if(live.key) clJoinEdit(live.code, live.key); else clSubscribe(live.code); }, 200);
+}
+async function clFetchPub(code){
+  let snap;
+  try{ snap = await CL.F.getDoc(pubRef(code)); }catch(e){ clErr(e); return null; }
+  if(!snap.exists() || snap.data().closed){ toast("없는 코드이거나 공유가 끝난 행사예요"); return null; }
+  const d = snap.data(); let R;
+  try{ R = sanitizeProj(await zDec(d)); }catch(e){ toast("행사 데이터를 읽지 못했어요"); return null; }
+  return {d, R};
+}
+function newLinkedEvent(R, ver, link){
+  const st = defaultState(); st.halls = []; st.sections = []; st.cats = [];
+  applyShared(st, R, null, link.role === "sub");
+  if(!st.halls.length) st.halls = defaultState().halls;
+  const prev = LIB.current, pe = entOf(prev);
+  const drop = pe && !pe.link && !pe.cu && isBlank(loadEvent(prev)) ? prev : null;
+  const id = addEvent(st);
+  setBase(id, {v:ver, p:R}); setLink(id, link);
+  CL.dropAfter = drop;
+  return id;
+}
+function dropBlank(){ const d = CL.dropAfter; CL.dropAfter = null; if(d && d !== LIB.current && entOf(d)){ removeLocal(d); renderTop(); } }
+async function clSubscribe(code){
+  if(!CL.db){ toast(CL.on ? "잠시 후 다시 시도해 주세요" : "이 화면에서는 실시간 공유 코드를 쓸 수 없어요"); return; }
+  const ex = LIB.list.find(x=>x.link && x.link.code === code);
+  if(ex){ if(ex.id !== LIB.current) switchEvent(ex.id); toast(ex.link.role === "sub" ? "이미 구독 중인 행사예요" : "내가 공유 중인 행사예요"); return; }
+  const got = await clFetchPub(code); if(!got) return;
+  const {d, R} = got;
+  if(!await confirmBox(`‘${R.event.name || "이름 없는 행사"}’${d.ownerName ? ` (${d.ownerName}님)` : ""}\n부스 ${R.booths.length}개 · 물품 ${R.booths.reduce((n,b)=>n + b.items.length, 0)}개\n\n구독하면 원본이 바뀔 때마다 자동으로 업데이트돼요. 구매 체크·수량·메모·지인은 나만 봐요.`, "구독하기")) return;
+  const id = newLinkedEvent(R, d.ver, {role:"sub", code});
+  CL.pubInfo[id] = {ver:d.ver, upd:d.upd, name:d.name, ownerName:d.ownerName || "", owner:d.owner};
+  closeSheet(); switchEvent(id); setView("booths"); dropBlank();
+  toast("구독했어요. 원본에서 온 물품은 ‘고민중’으로 들어와요");
+}
+async function clJoinEdit(code, key){
+  if(!CL.db){ toast(CL.on ? "잠시 후 다시 시도해 주세요" : "이 화면에서는 실시간 공유 코드를 쓸 수 없어요"); return; }
+  if(!clNeedLogin()) return;
+  const ex = LIB.list.find(x=>x.link && x.link.code === code);
+  if(ex && (ex.link.role === "own" || ex.link.role === "edit")){ if(ex.id !== LIB.current) switchEvent(ex.id); toast("이미 편집할 수 있는 행사예요"); return; }
+  const got = await clFetchPub(code); if(!got) return;
+  const {d, R} = got;
+  if(d.owner === CL.user.uid){ toast("내가 만든 행사예요"); return; }
+  if(!await confirmBox(`‘${R.event.name || "이름 없는 행사"}’${d.ownerName ? ` (${d.ownerName}님)` : ""}의 공동 편집자로 참여할까요?\n내가 고친 부스·물품 정보가 모두에게 반영돼요.`, "참여하기")) return;
+  try{ await CL.F.setDoc(CL.F.doc(CL.db, "pub", code, "editors", CL.user.uid), {key, name:CL.user.name || "", at:Date.now()}); }
+  catch(e){ toast(/permission-denied/.test((e && e.code) || "") ? "편집 코드가 맞지 않거나 바뀌었어요" : clErrText(e)); return; }
+  let id;
+  if(ex){ id = ex.id; setLink(id, {role:"edit", code}); }
+  else id = newLinkedEvent(R, d.ver, {role:"edit", code});
+  CL.pubInfo[id] = {ver:d.ver, upd:d.upd, name:d.name, ownerName:d.ownerName || "", owner:d.owner};
+  closeSheet();
+  if(id !== LIB.current) switchEvent(id); else { clListenPub(); renderTop(); rerenderSoft(); }
+  dropBlank();
+  if(view === "info") renderInfo();
+  toast("공동 편집자로 참여했어요");
+}
+async function clEdLoad(quiet){
+  const l = linkOf(LIB.current); if(!l || l.role !== "own") return;
+  if(quiet ? !CL.user : !clNeedLogin()) return;
+  const code = l.code, old = CL.ed[code];
+  if(old && old.busy) return;
+  if(old && old.key){ old.busy = true; } else { CL.ed[code] = {loading:true, busy:true, list:[], key:""}; clRefreshUI(); }
+  try{
+    const kref = CL.F.doc(CL.db, "pubkeys", code);
+    const ks = await CL.F.getDoc(kref);
+    let key = ks.exists() ? ks.data().key : "";
+    if(!key){ key = genCode(12); await CL.F.setDoc(kref, {key}); }
+    const qs = await CL.F.getDocs(CL.F.collection(CL.db, "pub", code, "editors"));
+    const list = []; qs.forEach(d=>{ const x = d.data(); list.push({uid:d.id, name:x.name || "", at:x.at || 0}); });
+    CL.ed[code] = {loading:false, busy:false, list, key, at:Date.now()};
+  }catch(e){ if(old && old.key) old.busy = false; else delete CL.ed[code]; if(!quiet) clErr(e); }
+  clRefreshUI();
+}
+async function clEdNewKey(){
+  const l = linkOf(LIB.current); if(!l || l.role !== "own" || !clNeedLogin()) return;
+  if(!await confirmBox("편집 코드를 새로 만들까요?\n지금 코드는 더 이상 쓸 수 없어요. 이미 참여한 공동 편집자는 그대로 남아요.", "새로 만들기")) return;
+  try{ const key = genCode(12); await CL.F.setDoc(CL.F.doc(CL.db, "pubkeys", l.code), {key}); if(CL.ed[l.code]) CL.ed[l.code].key = key; clRefreshUI(); toast("편집 코드를 바꿨어요"); }
+  catch(e){ clErr(e); }
+}
+async function clEdRemove(euid){
+  const l = linkOf(LIB.current); if(!l || l.role !== "own" || !clNeedLogin()) return;
+  const ed = CL.ed[l.code], x = ed && ed.list.find(y=>y.uid===euid);
+  if(!await confirmBox(`‘${(x && x.name) || "이 편집자"}’를 공동 편집에서 뺄까요?\n그 사람은 구독자로 바뀌어요. 편집 코드도 새로 만드는 게 안전해요.`, "빼기", true)) return;
+  try{ await CL.F.deleteDoc(CL.F.doc(CL.db, "pub", l.code, "editors", euid)); if(ed) ed.list = ed.list.filter(y=>y.uid!==euid); clRefreshUI(); toast("뺐어요"); }
+  catch(e){ clErr(e); }
+}
+function liveLink(code, key){ return location.origin + location.pathname + (key ? `#e=${code}-${key}` : `#s=${code}`); }
+function clCopy(kind){
+  const l = linkOf(LIB.current); if(!l) return;
+  const ed = CL.ed[l.code];
+  const v = kind === "code" ? "BCL-" + l.code : kind === "link" ? liveLink(l.code) : kind === "edit" && ed && ed.key ? "BCE-" + l.code + "-" + ed.key : kind === "editlink" && ed && ed.key ? liveLink(l.code, ed.key) : "";
+  if(!v) return;
+  const ta = document.createElement("textarea"); ta.value = v; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
+  document.body.appendChild(ta);
+  copyText(v, ta).finally(()=>setTimeout(()=>ta.remove(), 100));
+}
+
+/* ---- 화면 ---- */
+function clStatus(){
+  if(CL.syncing) return "동기화 중…";
+  if(CL.inflight > 0) return "저장하는 중…";
+  if(CL.err) return "⚠ " + CL.err;
+  const wait = LIB.list.some(e=>(!e.acct || e.acct === (CL.user && CL.user.uid)) && (e.mod||0) > (e.cu||0) && (e.cu || e.link || !isBlank(loadEvent(e.id))));
+  if(wait) return "곧 저장돼요";
+  return CL.lastSync ? `모든 기기와 동기화됨 · ${fmtWhen(CL.lastSync)}` : "모든 기기와 동기화됨";
+}
+function clAccInner(){
+  if(CL.failed) return `<h2>로그인·동기화</h2><p class="desc">로그인 기능을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.</p>`;
+  if(!CL.user) return `<h2>로그인·동기화</h2><p class="desc">Google 계정으로 로그인하면 행사가 계정에 저장돼서 휴대폰과 PC에서 같은 내용을 볼 수 있어요. 로그인하지 않아도 이 기기에서는 지금처럼 쓸 수 있어요.</p>
+    <button class="btn pre block" data-act="clLogin" ${CL.authKnown ? "" : "disabled"}>${CL.authKnown ? "Google로 로그인" : "불러오는 중…"}</button>`;
+  const u = CL.user;
+  return `<h2>로그인·동기화</h2>
+    <div class="acct">${u.photo ? `<img src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer">` : `<span class="av">${esc((u.name || "?").slice(0,1))}</span>`}<div><b>${esc(u.name || "Google 사용자")}</b><small>${esc(u.email)}</small></div></div>
+    <p class="clst">${esc(clStatus())}</p>
+    <div class="btnrow"><button class="btn ghost" data-act="clSync">지금 동기화</button><button class="btn ghost" data-act="clLogout">로그아웃</button></div>`;
+}
+function codeBox(code, label){ return `<div class="lcode"><span class="ll">${label}</span><b>${esc(code)}</b></div>`; }
+function clLiveInner(){
+  const id = LIB.current, l = linkOf(id), pi = CL.pubInfo[id] || {}, base = getBase(id);
+  const busy = !!(CL.pubBusy[id] || CL.pubT[id]);
+  const when = pi.upd ? fmtWhen(pi.upd) : "";
+  if(!l) return `<h2>실시간 공유</h2>
+    <p class="desc">공유 코드를 한 번만 보내면, 내가 행사를 고칠 때마다 받은 사람에게 <b>자동으로 반영</b>돼요. 부스·작가·배치도·물품(이름·가격)이 공유되고, 구매 체크·수량·메모·태그·지인은 각자만 봐요.</p>
+    <button class="btn pre block" data-act="clShare">${CL.user ? "실시간 공유 시작" : "로그인하고 시작하기"}</button>
+    <p class="desc" style="margin:10px 0 0">받은 코드(BCL-…, BCE-…)는 아래 ‘불러오기’에 붙여 넣으세요.</p>`;
+  if(l.role === "sub") return `<h2>구독 중</h2>
+    <p class="desc">${pi.ownerName ? `<b>${esc(pi.ownerName)}</b>님의 행사예요. ` : ""}원본이 바뀌면 자동으로 업데이트돼요. 부스·작가·물품 정보는 원본에서만 고칠 수 있고, 구매 체크·수량·메모·태그·지인, 내가 직접 추가한 부스·물품은 내 것으로 남아요.</p>
+    ${codeBox("BCL-" + l.code, "구독 코드")}
+    <p class="clst">${when ? `마지막 업데이트 ${when}` : "연결하는 중…"}${base ? ` · 버전 ${base.v}` : ""}</p>
+    <div class="btnrow"><button class="btn ghost" data-act="clCopy" data-v="code">코드 복사</button><button class="btn ghost" data-act="clCopy" data-v="link">링크 복사</button></div>
+    <div class="btnrow" style="margin-top:8px"><button class="btn danger" data-act="clUnsub">구독 끊기 (내 행사로 바꾸기)</button></div>`;
+  const st = !CL.user ? "⚠ 로그인해야 고친 내용이 반영돼요" : busy ? "올리는 중…" : (when ? `반영됨 · ${when}` : "연결하는 중…") + (base ? ` · 버전 ${base.v}` : "");
+  if(l.role === "edit") return `<h2>공동 편집 중</h2>
+    <p class="desc">${pi.ownerName ? `<b>${esc(pi.ownerName)}</b>님의 행사를 같이 고치고 있어요. ` : ""}내가 고친 부스·작가·물품 정보도 모두에게 반영돼요. 구매 체크·수량·메모는 나만 봐요.</p>
+    ${codeBox("BCL-" + l.code, "구독 코드")}
+    <p class="clst">${esc(st)}</p>
+    <div class="btnrow"><button class="btn ghost" data-act="clCopy" data-v="code">구독 코드 복사</button><button class="btn ghost" data-act="clCopy" data-v="link">링크 복사</button></div>
+    <div class="btnrow" style="margin-top:8px"><button class="btn danger" data-act="clLeave">공동 편집 그만두기</button></div>`;
+  const ed = CL.ed[l.code];
+  return `<h2>실시간 공유 중</h2>
+    <p class="desc">이 코드나 링크를 받은 사람은 구독자가 돼요. 내가 고친 내용이 자동으로 반영돼요.</p>
+    ${codeBox("BCL-" + l.code, "구독 코드")}
+    <p class="clst">${esc(st)}</p>
+    <div class="btnrow"><button class="btn pre" data-act="clCopy" data-v="code">코드 복사</button><button class="btn ghost" data-act="clCopy" data-v="link">링크 복사</button></div>
+    <div class="edbox">
+      <h4>공동 편집자</h4>
+      <p class="desc">편집 코드를 받은 사람은 로그인한 뒤 이 행사를 같이 고칠 수 있어요. 구독 코드와 달리 내용을 바꿀 수 있으니 믿을 수 있는 사람에게만 주세요.</p>
+      ${!ed ? `<button class="btn ghost block" data-act="clEdOpen">편집 코드·편집자 보기</button>`
+        : ed.loading ? `<p class="clst">불러오는 중…</p>`
+        : `${codeBox("BCE-" + l.code + "-" + ed.key, "편집 코드")}
+          <div class="btnrow"><button class="btn ghost" data-act="clCopy" data-v="edit">편집 코드 복사</button><button class="btn ghost" data-act="clCopy" data-v="editlink">편집 링크 복사</button><button class="btn ghost" data-act="clEdNew">코드 바꾸기</button></div>
+          <div class="edlist">${ed.list.length ? ed.list.map(x=>`<div class="edrow"><span>${esc(x.name || "이름 없음")}</span><small>${x.at ? fmtWhen(x.at) + " 참여" : ""}</small><button class="btn ghost sm" data-act="clEdDel" data-uid="${esc(x.uid)}">빼기</button></div>`).join("") : `<p class="clst">아직 공동 편집자가 없어요.</p>`}<button class="btn ghost sm" data-act="clEdOpen" style="margin-top:8px">목록 새로고침</button></div>`}
+    </div>
+    <div class="btnrow" style="margin-top:12px"><button class="btn danger" data-act="clStop">실시간 공유 끝내기</button></div>`;
+}
+function clCards(){ return CL.on ? `<div class="card" id="clAcc">${clAccInner()}</div>` : ""; }
+function clLiveCard(){
+  if(!CL.on) return "";
+  const l = linkOf(LIB.current), ed = l && CL.ed[l.code];
+  if(l && l.role === "own" && ed && ed.key && Date.now() - (ed.at||0) > 10000) setTimeout(()=>clEdLoad(true), 0);
+  return `<div class="card" id="clLive">${clLiveInner()}</div>`;
+}
+function clRefreshUI(){
+  try{ renderTop(); }catch(e){}
+  if(view === "info"){
+    const a = document.getElementById("clAcc"); if(a) a.innerHTML = clAccInner();
+    const l = document.getElementById("clLive"); if(l) l.innerHTML = clLiveInner();
+  }
+}
+function lockBoothForm(){
+  const body = sheet.querySelector(".sh-body"); if(!body) return;
+  body.insertAdjacentHTML("afterbegin", `<p class="lknote">구독한 행사의 원본 부스예요. 지인·태그·메모, 작가 메모만 바꿀 수 있어요.</p>`);
+  ["#fSec button", "#fNum", "#fSize button", "#fName", "#fPick", "#fTimes input", "#fTimes button", "#fArtAdd"].forEach(q=>body.querySelectorAll(q).forEach(el=>{ el.disabled = true; }));
+  body.querySelectorAll("#fArtists input").forEach(el=>{ if(el.dataset.af !== "memo") el.disabled = true; });
+  body.querySelectorAll("#fArtists [data-akdel], #fArtists [data-akimgdel], #fArtists [data-af=imgIn], #fTimeSug, [data-act=delBooth]").forEach(el=>{ el.style.display = "none"; });
+}
+function lockItemForm(){
+  const body = sheet.querySelector(".sh-body"); if(!body) return;
+  body.insertAdjacentHTML("afterbegin", `<p class="lknote">구독한 행사의 원본 물품이에요. 수량·우선순위·메모만 바꿀 수 있어요.</p>`);
+  ["#iName", "#iPrice", "#iCat", "#iArt", "#iType button", "#iSample"].forEach(q=>body.querySelectorAll(q).forEach(el=>{ el.disabled = true; }));
+  body.querySelectorAll("[data-act=delItem]").forEach(el=>{ el.style.display = "none"; });
+}
+const LOCK_ITEM = new Set(["판매 형태", "작가", "하위 물품 추가", "이름 바꾸기", "가격 바꾸기", "하위 물품 삭제", "삭제", "물품 삭제"]);
+const LOCK_BOOTH = new Set(["부스 삭제", "회전", "배치도에서 빼기", "배치도에 놓기"]);
+function lockMenu(el, list){
+  if(!list || !isSub()) return list;
+  const bid = el.dataset.bid || el.dataset.id, b = bid && findBooth(bid); if(!b) return list;
+  const iid = el.dataset.iid, i = iid && b.items.find(x=>x.id===iid);
+  const ban = i ? (lockedItem(i) ? LOCK_ITEM : null) : (el.matches(".agrp[data-aid]") ? null : (lockedBooth(b) ? LOCK_BOOTH : null));
+  if(!ban) return list;
+  const out = list.filter(x=>!(x && x.label && ban.has(x.label)));
+  return out.filter((x,k,a)=>!(x && x.sep && (k === a.length - 1 || (a[k+1] && a[k+1].sep))));
+}
+
 /* ---------- global click delegation ---------- */
 document.addEventListener("click", async e=>{
   const t = e.target.closest("[data-act],[data-tab]"); if(!t) return;
@@ -3308,6 +4061,17 @@ document.addEventListener("click", async e=>{
       break;
     }
     case "bulkOpen": openBulk(); break;
+    case "clLogin": clLogin(); break;
+    case "clLogout": clLogout(); break;
+    case "clSync": clResync(); break;
+    case "clShare": clStartShare(); break;
+    case "clStop": clStopShare(); break;
+    case "clUnsub": clUnsub(); break;
+    case "clLeave": clLeave(); break;
+    case "clCopy": clCopy(t.dataset.v); break;
+    case "clEdOpen": clEdLoad(); break;
+    case "clEdNew": clEdNewKey(); break;
+    case "clEdDel": clEdRemove(t.dataset.uid); break;
     case "viewUrl": {
       const u = t.dataset.u; if(!u) return;
       if(t.classList.contains("bad")){ window.open(u, "_blank", "noopener"); return; }
@@ -3385,10 +4149,11 @@ document.addEventListener("click", async e=>{
     }
     case "evdel": {
       const id = t.dataset.eid, ev = LIB.list.find(x=>x.id===id); if(!ev) return;
-      if(!await confirmBox(`‘${ev.name || "이름 없는 행사"}’를 지울까요?\n부스 ${ev.count||0}개와 체크 기록이 모두 사라지고 되돌릴 수 없어요.`, "삭제", true)) return;
+      if(!await confirmBox(`‘${ev.name || "이름 없는 행사"}’를 지울까요?\n부스 ${ev.count||0}개와 체크 기록이 모두 사라지고 되돌릴 수 없어요.${clDelNote(id)}`, "삭제", true)) return;
+      clDeleted(id); setBase(id, null); delete lastJs[id];
       LIB.list = LIB.list.filter(x=>x.id!==id); lsDel(EV_PREFIX + id); delete memEvents[id];
       if(!LIB.list.length){ const nid = uid(), st = defaultState(); memEvents[nid] = st; lsSet(EV_PREFIX + nid, JSON.stringify(st)); LIB.list.push({id:nid, ...evMeta(st)}); }
-      if(id === LIB.current){ LIB.current = LIB.list[0].id; S = loadEvent(LIB.current); resetUI(); saveIndex(); renderTop(); setView(view); }
+      if(id === LIB.current){ LIB.current = LIB.list[0].id; S = loadEvent(LIB.current); resetUI(); saveIndex(); clListenPub(); renderTop(); setView(view); }
       else saveIndex();
       if(sh && sh.kind === "events") renderEvents();
       toast("행사를 지웠어요"); break;
@@ -3444,7 +4209,7 @@ document.addEventListener("click", async e=>{
       break;
     }
     case "showOnMap": { const b = findBooth(sh && sh.id); if(b && b.pos) goMap(b); break; }
-    case "placeOnMap": { const b = findBooth(sh && sh.id); if(b) placeMap(b); break; }
+    case "placeOnMap": { const b = findBooth(sh && sh.id); if(b && lockedBooth(b)){ toast("원본 배치도에 아직 놓이지 않은 부스예요"); break; } if(b) placeMap(b); break; }
     case "artShow": { const b = findBooth(sh && sh.id), a = b && b.artists.find(x=>x.id===t.dataset.aid); if(a){ a.hidden = false; save(); renderBoothItems(); rerenderSoft(); } break; }
     case "sec": secFilter = t.dataset.sec; renderBoothList(); main.scrollTop = 0; break;
     case "open": openSheet({kind:"booth", id:t.dataset.id}); break;
@@ -3494,6 +4259,7 @@ document.addEventListener("click", async e=>{
         if(nick || site || info || amemo || apf || apt || imgs.length) artists.push({id:a.id || uid(), nick, site, info, memo:amemo, preFrom:apf, preTo:apt, preToTime:aptt, hidden:!!a.hidden, imgs});
       }
       const fields = {section:d.section, num:d.num, half:d.half, span:d.half ? 1 : (d.span||1), size:d.half ? 1 : 2*(d.span||1), name:d.name.trim(), artists, pickup:pk, times, isFriend:!!(d.isFriend || (d.friendsText||"").trim()), friends:[...new Set((d.friendsText||"").split(/[,，、]/).map(x=>x.trim().slice(0,30)).filter(Boolean))], memo:d.memo, tags:[...d.tags]};
+      if(sh.id && !findBooth(sh.id)){ toast("다른 곳에서 지워진 부스예요"); closeSheet(); return; }
       if(sh.id){
         b = findBooth(sh.id); const wasFull = !b.half;
         Object.assign(b, fields); pinSoleArtist(b);
@@ -3517,7 +4283,8 @@ document.addEventListener("click", async e=>{
     case "saveItem": {
       sh.keepInputs();
       const d = sh.draft; if(!d.name.trim()){ toast("물품 이름을 적어 주세요"); return; }
-      const b = findBooth(sh.id); const it = b.items.find(i=>i.id===sh.iid);
+      const b = findBooth(sh.id); const it = b && b.items.find(i=>i.id===sh.iid);
+      if(!it){ toast("다른 곳에서 지워진 물품이에요"); closeSheet(); return; }
       const smp = (d.sample||"").trim() ? normLink(d.sample) : "";
       if(smp === null){ toast("샘플 링크를 https://로 시작하게 적어 주세요"); return; }
       const price = d.type==="free" ? 0 : d.price, cap = d.type==="pre" ? 2 : 1, want = Math.max(1, +d.want || 1);
@@ -3621,11 +4388,11 @@ document.addEventListener("click", async e=>{
     }
     case "reset": {
       const nm = S.event.name || "이름 없는 행사";
-      if(!await confirmBox(`‘${nm}’를 지울까요?\n부스, 물품, 체크 기록이 모두 사라지고 되돌릴 수 없어요.`, "삭제", true)) break;
-      const id = LIB.current;
+      if(!await confirmBox(`‘${nm}’를 지울까요?\n부스, 물품, 체크 기록이 모두 사라지고 되돌릴 수 없어요.${clDelNote(LIB.current)}`, "삭제", true)) break;
+      const id = LIB.current; clDeleted(id); setBase(id, null); delete lastJs[id]; clearTimeout(saveT); saveT = null;
       LIB.list = LIB.list.filter(x=>x.id!==id); lsDel(EV_PREFIX + id); delete memEvents[id];
       if(!LIB.list.length){ const nid = uid(), st = defaultState(); st.sections = [...S.sections]; st.cats = [...S.cats]; memEvents[nid] = st; lsSet(EV_PREFIX + nid, JSON.stringify(st)); LIB.list.push({id:nid, ...evMeta(st)}); }
-      LIB.current = LIB.list[0].id; saveIndex(); S = loadEvent(LIB.current); resetUI(); renderTop(); renderView();
+      LIB.current = LIB.list[0].id; saveIndex(); S = loadEvent(LIB.current); resetUI(); clListenPub(); renderTop(); renderView();
       toast("행사를 지웠어요"); break;
     }
   }
@@ -3707,6 +4474,7 @@ fab.addEventListener("click", ()=>{
 /* boot */
 renderTop();
 setView("booths");
+clInit();
 })();
 </script>
 </body>
