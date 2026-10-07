@@ -689,6 +689,9 @@ a.anick{background:var(--pre-soft);color:var(--pre)}
 .vfi{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);font-size:14px}
 .vfi span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700}
 .vfi small{flex:none;color:var(--muted)}
+.vfi .vfmay{width:auto;height:28px;padding:0 9px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:12px;font-weight:700}
+.vfi .vfmay[aria-pressed="true"]{background:#FFE58A;border-color:#E8B400;color:#5C4300}
+.vfi.may span{color:var(--muted)}
 .vfi button{flex:none;width:30px;height:30px;border:0;border-radius:8px;background:none;color:var(--muted);font-size:18px}
 .vfempty{font-size:13px;color:var(--muted);padding:8px 2px}
 @media (min-width:900px){
@@ -1097,35 +1100,39 @@ function closeViewer(){
   if(!sh) clFlushPending();
   return true;
 }
-let vfType = null;
+let vfType = null, vfMaybe = false;
 function startWrite(){
   const b = findBooth(VW.bid); if(!b) return;
   const v = document.getElementById("imgv"); v.classList.add("write");
   const a = b.artists.find(x=>x.id===VW.aid);
   if(!vfType) vfType = lastType;
+  vfMaybe = lastMaybe;
   const f = document.getElementById("vForm");
   f.innerHTML = `
     <div class="vfh"><b>${esc(boothCode(b))} ${esc(a && a.nick ? a.nick : (b.name || ""))}</b><span id="vfSum"></span></div>
     <div class="vfrow"><input class="inp" id="vfName" placeholder="물품 이름" enterkeyhint="next" autocomplete="off"></div>
-    <div class="vfrow"><input class="inp" id="vfPrice" placeholder="가격(원)" inputmode="numeric" enterkeyhint="done"><input class="inp" id="vfQty" placeholder="수량 1" inputmode="numeric" style="flex:none;width:84px" enterkeyhint="done"></div>
+    <div class="vfrow"><input class="inp" id="vfPrice" placeholder="가격(원)" inputmode="numeric" enterkeyhint="done"><input class="inp" id="vfQty" placeholder="수량 1" inputmode="numeric" style="flex:none;width:76px" enterkeyhint="done"><button type="button" class="maytog" id="vfMaybe" aria-pressed="${vfMaybe}" style="height:44px">고민중</button></div>
     <div class="vfrow"><div class="pick" id="vfType">${[["pre","선입금"],["on","현장"],["free","무료"]].map(([t,l])=>`<button type="button" class="${t}" data-type="${t}" aria-pressed="${vfType===t}">${l}</button>`).join("")}</div><button type="button" class="btn pre" id="vfAdd" style="padding:0 18px">추가</button></div>
     <div class="vflist" id="vfList"></div>`;
   const nm = document.getElementById("vfName"), pr = document.getElementById("vfPrice"), q = document.getElementById("vfQty");
   const add = ()=>{
     const name = nm.value.trim(); if(!name){ nm.focus(); toast("물품 이름을 적어 주세요"); return; }
-    b.items.push({id:uid(), name:name.slice(0,60), price: vfType==="free" ? 0 : parsePrice(pr.value), want:Math.max(1, parseInt(q.value,10)||1), type:vfType, st:0, must:false, maybe:false, note:"", cat:lastCat, sample:"", artist: VW.aid || soleArtist(b) || ""});
+    b.items.push({id:uid(), name:name.slice(0,60), price: vfType==="free" ? 0 : parsePrice(pr.value), want:Math.max(1, parseInt(q.value,10)||1), type:vfType, st:0, must:false, maybe:vfMaybe, note:"", cat:lastCat, sample:"", artist: VW.aid || soleArtist(b) || ""});
     save(); renderTop(); nm.value = ""; pr.value = ""; q.value = ""; drawWriteList(); nm.focus();
   };
   nm.addEventListener("keydown", e=>{ if(e.key==="Enter" && !imeBusy(e)){ e.preventDefault(); if(pr.value.trim() || vfType==="free") add(); else pr.focus(); } });
   pr.addEventListener("keydown", e=>{ if(e.key==="Enter" && !imeBusy(e)){ e.preventDefault(); add(); } });
   q.addEventListener("keydown", e=>{ if(e.key==="Enter" && !imeBusy(e)){ e.preventDefault(); add(); } });
   document.getElementById("vfAdd").addEventListener("click", add);
+  document.getElementById("vfMaybe").addEventListener("click", e=>{ vfMaybe = lastMaybe = !vfMaybe; e.currentTarget.setAttribute("aria-pressed", String(vfMaybe)); });
   document.getElementById("vfType").addEventListener("click", e=>{
     const t = e.target.closest("button"); if(!t) return; vfType = lastType = t.dataset.type;
     document.querySelectorAll("#vfType button").forEach(x=>x.setAttribute("aria-pressed", String(x===t)));
     pr.placeholder = vfType==="free" ? "무료" : "가격(원)";
   });
   document.getElementById("vfList").addEventListener("click", e=>{
+    const m = e.target.closest("[data-vfmay]");
+    if(m){ const it = b.items.find(x=>x.id===m.dataset.vfmay); if(it){ it.maybe = !it.maybe; if(it.maybe) it.must = false; save(); renderTop(); drawWriteList(); } return; }
     const d = e.target.closest("[data-vfdel]"); if(!d) return;
     const it = b.items.find(x=>x.id===d.dataset.vfdel); if(!it) return;
     b.items = b.items.filter(x=>x!==it); save(); renderTop(); drawWriteList(); toast(`‘${it.name}’을 지웠어요`);
@@ -1138,7 +1145,7 @@ function drawWriteList(){
   const mine = b.items.filter(i=> VW.aid && b.artists.length > 1 ? i.artist === VW.aid : true);
   const sum = mine.reduce((n,i)=>n + (i.maybe ? 0 : amt(mkLine(b, i, null))), 0);
   document.getElementById("vfSum").textContent = mine.length ? `${mine.length}개 · ${won(sum)}` : "";
-  el.innerHTML = mine.length ? mine.slice().reverse().map(i=>`<div class="vfi"><span>${esc(i.name)}</span><small>${typeLabel(i)} · ${i.type==="free" ? "무료" : won(i.price)}${i.want>1 ? " × " + i.want : ""}</small>${lockedItem(i) ? "" : `<button type="button" data-vfdel="${i.id}" aria-label="${esc(i.name)} 지우기">×</button>`}</div>`).join("")
+  el.innerHTML = mine.length ? mine.slice().reverse().map(i=>`<div class="vfi${i.maybe ? " may" : ""}"><span>${esc(i.name)}</span><small>${typeLabel(i)} · ${i.type==="free" ? "무료" : won(i.price)}${i.want>1 ? " × " + i.want : ""}</small><button type="button" class="vfmay" data-vfmay="${i.id}" aria-pressed="${!!i.maybe}" aria-label="${esc(i.name)} 고민중 표시">고민</button>${lockedItem(i) ? "" : `<button type="button" data-vfdel="${i.id}" aria-label="${esc(i.name)} 지우기">×</button>`}</div>`).join("")
     : `<div class="vfempty">이미지를 보면서 살 물품을 적고 ‘추가’를 누르세요. 이미지를 누르면 확대돼요.</div>`;
 }
 function stepViewer(d){ const n = VW.list.length; if(n < 2) return; VW.k = (VW.k + d + n) % n; showViewer(); }
