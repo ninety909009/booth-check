@@ -870,6 +870,8 @@ a.anick svg{color:var(--pre)}
 .sh-title h3{overflow-wrap:anywhere}
 .romemo{white-space:pre-wrap;background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-size:15px;line-height:1.55;overflow-wrap:anywhere}
 .plink{flex:none;display:inline-flex;align-items:center;height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12.5px;font-weight:700;text-decoration:none;white-space:nowrap}
+.erowl.ended{opacity:.45}
+.erowl.ended .mini{background:var(--muted)}
 .erowl{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line)}
 .erowl:first-of-type{border-top:0}
 .erowl .erow{border-top:0;flex:1;min-width:0}
@@ -1513,7 +1515,7 @@ function boothCard(b){
     <span class="bmain">
       <span class="bname ${b.name?"":"none"}">${b.name ? esc(b.name) : "이름 없는 부스"}</span>
       ${b.artists.some(a=>a.nick) ? `<span class="bartists">${b.artists.filter(a=>a.nick).map(a=>esc(a.nick)).join(", ")}</span>` : ""}
-      ${(()=>{ const pc = boothPeriods(b).every(x=>x.ps.cls === "ok") ? "" : periodChip(b); const m = frChip(b) + dlChip(b) + pc; return m ? `<span class="bmeta">${m}</span>` : ""; })()}
+      ${(()=>{ const pc = boothPeriods(b).every(x=>x.ps.cls === "ok" || x.ps.cls === "late") ? "" : periodChip(b); const m = frChip(b) + dlChip(b) + pc; return m ? `<span class="bmeta">${m}</span>` : ""; })()}
       ${(()=>{ const parts = [];
         if(st.pre) parts.push(`<span class="ty pre">선입금 ${st.pre}</span>`);
         if(st.on) parts.push(`<span class="ty on">현장 ${st.on}</span>`);
@@ -2379,7 +2381,7 @@ function renderBoothItems(){
         return;
       }
       const ap = periodOf(a), aps = ap ? periodState(ap, artistPaid(b, a)) : null;
-      html += `<div class="agbox" data-aid="${a.id}"><div class="agrp" data-aid="${a.id}" data-bid="${b.id}"><span class="an">${nm}</span>${aps ? `<span class="dl ${aps.cls}" title="${esc(periodText(ap))}">${esc(aps.text.replace(/^선입금 /,""))}</span>` : ""}<input class="amemo" data-amemo="${a.id}" value="${esc(a.memo||"")}" placeholder="메모"></div>`
+      html += `<div class="agbox" data-aid="${a.id}"><div class="agrp" data-aid="${a.id}" data-bid="${b.id}"><span class="an">${nm}</span>${aps && aps.cls !== "late" ? `<span class="dl ${aps.cls}" title="${esc(periodText(ap))}">${esc(aps.text.replace(/^선입금 /,""))}</span>` : ""}<input class="amemo" data-amemo="${a.id}" value="${esc(a.memo||"")}" placeholder="메모"></div>`
         + (its.length ? rows(its) : `<div class="aempty">이 작가로 지정한 물품이 없어요</div>`) + `</div>`;
     });
   } else html = rows(b.items);
@@ -3023,7 +3025,9 @@ function renderEvTab(){
   for(const b of booths){
     for(const x of boothPeriods(b)) periods.push({b, p:x.p, ps:x.ps, label:x.label || "작가"});
   }
-  periods.sort((x,y)=>((periodEnd(x.p)||new Date(8.64e15)) - (periodEnd(y.p)||new Date(8.64e15))));
+  const nowD = new Date();
+  for(const x of periods){ const e = periodEnd(x.p); x.ended = !!(e && e < nowD); }
+  periods.sort((x,y)=>(x.ended - y.ended) || ((periodEnd(x.p)||new Date(8.64e15)) - (periodEnd(y.p)||new Date(8.64e15))));
   const free = booths.map(b=>({b, items:linesOf(b).filter(i=>i.type==="free")})).filter(x=>x.items.length);
   const code = b=>`<span class="mini" style="--sc:${secColor(b.section)}">${esc(boothCode(b))}</span>`;
   const left = t=>{ if(!today || !t) return ""; const l = hmMin(t) - nm; return `<span class="dl ${l<0?"ok":l<=30?"soon":""}">${l<0?"지남":fmtLeft(l)+" 남음"}</span>`; };
@@ -3033,7 +3037,7 @@ function renderEvTab(){
     ${bt.length ? `<section class="card"><h2>부스 시간·이벤트</h2>
       ${bt.map(({b,x})=>`<button class="erow" data-act="open" data-id="${b.id}"><b class="et">${x.time||"--:--"}</b>${code(b)}<span class="el">${esc(x.label||"시간")}<small>${esc(b.name||"")}</small></span>${left(x.time)}</button>`).join("")}</section>` : ""}
     ${pickups.length ? `<section class="card"><h2>선입금 수령 마감</h2>${pickups.map(b=>`<button class="erow" data-act="open" data-id="${b.id}"><b class="et">${b.pickup}</b>${code(b)}<span class="el">${esc(b.name||"이름 없는 부스")}</span>${left(b.pickup)}</button>`).join("")}</section>` : ""}
-    ${periods.length ? `<section class="card"><h2>선입금 기간</h2>${periods.map(x=>`<div class="erowl"><button class="erow" data-act="open" data-id="${x.b.id}"><b class="et" style="width:auto;font-size:13px">${esc(periodText(x.p))}</b>${code(x.b)}<span class="el">${esc(x.label)}<small>${esc(x.b.name||"")}</small></span><span class="dl ${x.ps.cls}">${esc(x.ps.text.replace(/^선입금 /,""))}</span></button>${x.p.link ? `<a class="plink" href="${esc(x.p.link)}" target="_blank" rel="noopener noreferrer" aria-label="선입금 폼 열기">폼 ↗</a>` : ""}</div>`).join("")}</section>` : ""}
+    ${periods.length ? `<section class="card"><h2>선입금 기간</h2>${periods.map(x=>`<div class="erowl${x.ended ? " ended" : ""}"><button class="erow" data-act="open" data-id="${x.b.id}"><b class="et" style="width:auto;font-size:13px">${esc(periodText(x.p))}</b>${code(x.b)}<span class="el">${esc(x.label)}<small>${esc(x.b.name||"")}</small></span><span class="dl ${x.ps.cls}">${esc(x.ps.text.replace(/^선입금 /,""))}</span></button>${x.p.link ? `<a class="plink" href="${esc(x.p.link)}" target="_blank" rel="noopener noreferrer" aria-label="선입금 폼 열기">폼 ↗</a>` : ""}</div>`).join("")}</section>` : ""}
     ${free.length ? `<section class="card"><h2>전프레·무료 배포</h2>
       ${free.map(({b,items})=>`<div class="cgroup"><button class="chead" data-act="open" data-id="${b.id}">${code(b)}<span class="nm">${esc(b.name||"이름 없는 부스")}</span><span class="cnt">${items.filter(isFinal).length}/${items.length}</span></button>${items.map(L=>itemRow(b,L)).join("")}</div>`).join("")
 }</section>` : ""}
