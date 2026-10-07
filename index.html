@@ -881,6 +881,31 @@ a.anick svg{color:var(--pre)}
 .erowl{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line)}
 .erowl:first-of-type{border-top:0}
 .erowl .erow{border-top:0;flex:1;min-width:0}
+/* 모바일 헤더 압축 */
+@media (max-width:559px){
+  .top{padding:9px 14px 9px}
+  .top-row{gap:6px}
+  .ev-name{font-size:19px}
+  .ev-name.unset{font-size:17px}
+  .evbtn svg{width:18px;height:18px}
+  .dday{font-size:14px;padding:4px 8px 3px;border-radius:8px}
+  .gear{width:34px;height:34px;border-radius:10px}
+  .gear svg{width:18px;height:18px}
+  .ev-sub{font-size:12px;margin-top:2px}
+  .stats{margin-top:7px;padding:6px 0;border-radius:10px}
+  .stat{padding:0 8px;display:flex;flex-direction:row;align-items:baseline;gap:5px;white-space:nowrap;overflow:hidden}
+  .stat .k{flex:none}
+  .stat .kx{display:none}
+  .stat .k{font-size:11px;gap:4px}
+  .stat .k i{width:6px;height:6px}
+  .stat .v{font-size:15px;margin-top:0;line-height:1.25}
+  .stat .v small{font-size:11px}
+  .stat .v .may{display:none}
+  .nowline{margin-top:6px;font-size:13px}
+  .alertline{margin-top:6px;padding:5px 9px;font-size:12px}
+  .top.mini .stats,.top.mini .ev-sub,.top.mini .nowline{display:none}
+  .top.mini{padding-bottom:8px}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -1437,9 +1462,9 @@ function renderTop(){
     ${(()=>{ const u = urgentBooths(); if(!u.length) return "";
       return u.slice(0,2).map(x=>`<button class="alertline ${x.ps.cls==="late"?"late":""}" data-act="open" data-id="${x.b.id}"><span>⏰ ${esc(boothCode(x.b))} ${esc(x.b.name||"")} — ${x.ps.text}</span>${u.length>2?`<small>+${u.length-2}</small>`:""}</button>`).join(""); })()}
     <div class="stats">
-      <div class="stat"><div class="k"><i style="background:var(--pre)"></i>선입금 수령</div><div class="v">${t.preF}<small> / ${t.pre}</small></div></div>
-      <div class="stat"><div class="k"><i style="background:var(--on)"></i>현장 구매</div><div class="v">${t.onF}<small> / ${t.on}</small></div></div>
-      <div class="stat"><div class="k">남은 결제</div><div class="v">${won(t.unpaid)}${t.maybe ? `<span class="may">+ 고민중 ${t.maybe}개 ${won(t.maybeAmt)}</span>` : ""}</div></div>
+      <div class="stat"><div class="k"><i style="background:var(--pre)"></i>선입금<span class="kx"> 수령</span></div><div class="v">${t.preF}<small> / ${t.pre}</small></div></div>
+      <div class="stat"><div class="k"><i style="background:var(--on)"></i>현장<span class="kx"> 구매</span></div><div class="v">${t.onF}<small> / ${t.on}</small></div></div>
+      <div class="stat"><div class="k">남은<span class="kx"> 결제</span></div><div class="v">${won(t.unpaid)}${t.maybe ? `<span class="may">+ 고민중 ${t.maybe}개 ${won(t.maybeAmt)}</span>` : ""}</div></div>
     </div>`;
 }
 
@@ -4665,6 +4690,16 @@ fab.addEventListener("click", ()=>{
   }, true);
 })();
 
+/* 모바일: 아래로 스크롤하면 헤더를 접음 */
+(()=>{
+  const mq = window.matchMedia("(max-width:559px)");
+  let mini = false;
+  main.addEventListener("scroll", ()=>{
+    if(!mq.matches){ if(mini){ mini = false; document.getElementById("top").classList.remove("mini"); } return; }
+    const y = main.scrollTop, want = mini ? y > 8 : y > 70;
+    if(want !== mini){ mini = want; document.getElementById("top").classList.toggle("mini", mini); }
+  }, {passive:true});
+})();
 /* boot */
 renderTop();
 setView("booths");
