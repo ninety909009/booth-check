@@ -505,6 +505,9 @@ a.anick{background:var(--pre-soft);color:var(--pre)}
   #checkList,.evgrid,.pplgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px;align-items:start}
   #checkList .cgroup,.pplgrid .pcard,.evgrid > .card{margin-bottom:0}
   #checkList .empty,.pplgrid .pplhead,.pplgrid .empty{grid-column:1/-1}
+  #checkList.mas,.evgrid.mas{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
+  .mas > .mcol{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:12px}
+  .mas > .mcol > *{margin-bottom:0}
   .infogrid{column-width:420px;column-gap:16px}
   .infogrid > .card{display:inline-block;width:100%;break-inside:avoid}
   .stats{max-width:760px}
@@ -1666,7 +1669,34 @@ function renderCheckList(){
     return;
   }
   el.innerHTML = blocks.join("");
+  masonry(el);
 }
+/* 카드 쌓기: 넓은 화면에서 카드를 가장 짧은 열에 차례로 넣어 빈칸 없이 채움 */
+const MAS_MIN = 380, MAS_GAP = 12;
+function masonry(el){
+  if(!el) return;
+  const cols = [...el.children].filter(c=>c.classList.contains("mcol"));
+  let cards = [];
+  if(cols.length) cards = [...el.querySelectorAll(":scope > .mcol > *")].sort((a,b)=>(+a.dataset.mi) - (+b.dataset.mi)).concat([...el.children].filter(c=>!c.classList.contains("mcol")));
+  else cards = [...el.children];
+  const full = cards.filter(c=>c.classList.contains("empty") || c.classList.contains("evhint") || c.classList.contains("mfull"));
+  const items = cards.filter(c=>!full.includes(c));
+  items.forEach((c,i)=>{ c.dataset.mi = i; });
+  const w = el.clientWidth - (parseFloat(getComputedStyle(el).paddingLeft) || 0) - (parseFloat(getComputedStyle(el).paddingRight) || 0);
+  const n = window.innerWidth >= 900 ? Math.max(1, Math.floor((w + MAS_GAP) / (MAS_MIN + MAS_GAP))) : 1;
+  el.innerHTML = "";
+  if(n < 2 || items.length < 2){ el.classList.remove("mas"); for(const c of [...items, ...full]) el.appendChild(c); return; }
+  el.classList.add("mas");
+  const colEls = Array.from({length:n}, ()=>{ const d = document.createElement("div"); d.className = "mcol"; el.appendChild(d); return d; });
+  const hs = new Array(n).fill(0);
+  for(const c of items){
+    let k = 0; for(let j = 1; j < n; j++) if(hs[j] < hs[k] - 1) k = j;
+    colEls[k].appendChild(c); hs[k] += c.offsetHeight + MAS_GAP;
+  }
+  for(const c of full){ c.style.flexBasis = "100%"; el.appendChild(c); }
+}
+let masT = null;
+window.addEventListener("resize", ()=>{ clearTimeout(masT); masT = setTimeout(()=>{ if(view === "check") masonry(document.getElementById("checkList")); else if(view === "evtab") masonry(main.querySelector(".evgrid")); }, 150); });
 
 /* info */
 function cardHead(title, key){ const on = infoEdit.has(key); return `<div class="chd"><h2>${title}</h2><button class="btn ${on ? "pre" : "ghost"} sm" data-act="iedit" data-k="${key}">${on ? "완료" : "편집"}</button></div>`; }
@@ -3051,7 +3081,7 @@ function renderEvTab(){
     ${!bt.length && !pickups.length && !periods.length && !free.length ? `<p class="evhint">부스 편집에서 부스 시간·선입금 기간을 적거나 ‘무료’ 물품을 넣으면 여기에 시간순으로 모여요.</p>` : ""}
   </div>`;
   renderSchList();
-
+  masonry(main.querySelector(".evgrid"));
 }
 
 /* ---------- people tab ---------- */
