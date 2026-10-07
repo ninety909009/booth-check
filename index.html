@@ -868,6 +868,11 @@ a.anick svg{color:var(--pre)}
 }
 .sh-head .sh-title{min-width:0}
 .sh-title h3{overflow-wrap:anywhere}
+.romemo{white-space:pre-wrap;background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-size:15px;line-height:1.55;overflow-wrap:anywhere}
+.plink{flex:none;display:inline-flex;align-items:center;height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12.5px;font-weight:700;text-decoration:none;white-space:nowrap}
+.erowl{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line)}
+.erowl:first-of-type{border-top:0}
+.erowl .erow{border-top:0;flex:1;min-width:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -882,10 +887,10 @@ a.anick svg{color:var(--pre)}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 10h7v11M14 3v7h7M14 15h4"/></svg>배치도</button>
     <button class="tab" role="tab" data-tab="check" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.5 1.5L7.5 4.5M3.5 12l1.5 1.5 2.5-3M3.5 18l1.5 1.5 2.5-3"/></svg>체크</button>
-    <button class="tab" role="tab" data-tab="evtab" aria-selected="false">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M12 13.5l1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5 2.2-.3z"/></svg>행사</button>
     <button class="tab" role="tab" data-tab="people" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.9.8 3.1 2.6 3.5 5.2"/></svg>지인</button>
+    <button class="tab" role="tab" data-tab="evtab" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="M12 13.5l1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2-1.6-1.5 2.2-.3z"/></svg>행사</button>
   </nav>
 </div>
 <button class="fab" id="fab" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>부스 추가</button>
@@ -958,9 +963,10 @@ function normalize(d){
       tags: Array.isArray(b.tags) ? [...new Set(b.tags.map(cleanTag).filter(Boolean))].slice(0,12) : [],
       name: String(b.name || ""),
       memo: String(b.memo || ""),
+      pmemo: String(b.pmemo || "").slice(0,2000),
       _link: normLink(b.link) || "",
       pickup: normTime(b.pickup) || "",
-      artists: Array.isArray(b.artists) ? b.artists.filter(a=>a&&typeof a==="object").map(a=>({id:sid(a.id)||uid(), nick:String(a.nick||"").trim().slice(0,30), site:normSite(a.site)||"", info:normLink(a.info)||"", memo:String(a.memo||"").slice(0,200), preFrom:validDate(a.preFrom), preTo:validDate(a.preTo), preToTime:normTime(a.preToTime)||"", hidden:!!a.hidden, imgs:Array.isArray(a.imgs) ? [...new Set(a.imgs.map(u=>normLink(u)).filter(Boolean))].slice(0,12) : []})).filter(a=>a.imgs.length||a.nick||a.site||a.info||a.memo||a.preFrom||a.preTo) : [],
+      artists: Array.isArray(b.artists) ? b.artists.filter(a=>a&&typeof a==="object").map(a=>({id:sid(a.id)||uid(), nick:String(a.nick||"").trim().slice(0,30), site:normSite(a.site)||"", info:normLink(a.info)||"", memo:String(a.memo||"").slice(0,200), preFrom:validDate(a.preFrom), preTo:validDate(a.preTo), preToTime:normTime(a.preToTime)||"", preLink:normLink(a.preLink)||"", hidden:!!a.hidden, imgs:Array.isArray(a.imgs) ? [...new Set(a.imgs.map(u=>normLink(u)).filter(Boolean))].slice(0,12) : []})).filter(a=>a.imgs.length||a.nick||a.site||a.info||a.memo||a.preFrom||a.preTo||a.preLink) : [],
       friends: Array.isArray(b.friends) ? [...new Set(b.friends.map(f=>String(f||"").trim().slice(0,30)).filter(Boolean))] : (String(b.friend||"").trim() ? [String(b.friend).trim().slice(0,30)] : []),
       isFriend: !!b.isFriend || !!String(b.friend||"").trim() || (Array.isArray(b.friends) && b.friends.some(f=>String(f||"").trim())),
       _bp: {preFrom: validDate(b.preFrom), preTo: validDate(b.preTo), preToTime: normTime(b.preToTime) || ""},
@@ -1213,12 +1219,13 @@ function optNote(opts){ const o = optList(opts).filter(x=>+x.qty > 0); if(!o.len
 function typeLabel(i){ return i.type==="pre" ? "선입금" : i.type==="free" ? "무료" : "현장"; }
 function validDate(d){ return /^\d{4}-\d{2}-\d{2}$/.test(d||"") ? d : ""; }
 function md(d){ const p = d.split("-"); return `${+p[1]}/${+p[2]}`; }
-function periodOf(o){ return (o && (o.preFrom || o.preTo)) ? {from:o.preFrom, to:o.preTo, time:o.preToTime} : null; }
-function periodText(p){ return `${p.from ? md(p.from) : ""} ~ ${p.to ? md(p.to) : ""}${p.to && p.time ? " " + p.time : ""}`.trim(); }
+function periodOf(o){ return (o && (o.preFrom || o.preTo || o.preLink)) ? {from:o.preFrom, to:o.preTo, time:o.preToTime, link:o.preLink||""} : null; }
+function periodText(p){ if(!p.from && !p.to) return "기간 미정"; return `${p.from ? md(p.from) : ""} ~ ${p.to ? md(p.to) : ""}${p.to && p.time ? " " + p.time : ""}`.trim(); }
 function periodEnd(p){ return p.to ? new Date(p.to + "T" + (p.time || "23:59")) : null; }
 function periodState(p, paid){
   if(!p) return null;
   if(paid) return {cls:"ok", text:"입금 완료"};
+  if(!p.from && !p.to) return {cls:"", text:"선입금 폼 있음"};
   const now = new Date();
   if(p.from && now < new Date(p.from + "T00:00")) return {cls:"", text:`선입금 ${md(p.from)} 시작`};
   const e = periodEnd(p);
@@ -1493,14 +1500,14 @@ function matchTag(b){ return !tagFilter || (tagFilter === "__friend" ? b.isFrien
 function matchQuery(b, q){
   if(!q) return true;
   q = q.toLowerCase().replace(/\s+/g,"");
-  const hay = (boothCode(b) + b.section + b.num + b.name + b.memo + b.tags.join("") + (b.isFriend ? "지인" + b.friends.join("") : "") + b.artists.map(a=>a.nick).join("") + b.items.map(i=>i.name+i.note+(i.subs||[]).map(x=>x.name).join("")).join("")).toLowerCase().replace(/\s+/g,"");
+  const hay = (boothCode(b) + b.section + b.num + b.name + b.memo + (b.pmemo||"") + b.tags.join("") + (b.isFriend ? "지인" + b.friends.join("") : "") + b.artists.map(a=>a.nick).join("") + b.items.map(i=>i.name+i.note+(i.subs||[]).map(x=>x.name).join("")).join("")).toLowerCase().replace(/\s+/g,"");
   return hay.includes(q);
 }
 function boothCard(b){
   const st = boothStats(b);
   const pct = st.total ? Math.round(st.fin/st.total*100) : 0;
   const alldone = st.total > 0 && st.fin === st.total;
-  const memo = b.memo.trim().split("\n")[0];
+  const memo = (b.memo.trim() || String(b.pmemo||"").trim()).split("\n")[0];
   return `<button class="booth ${alldone?"alldone":""} ${b.isFriend?"friend":""}" data-act="open" data-id="${b.id}" style="--sc:${secColor(b.section)}">
     ${stamp(b)}
     <span class="bmain">
@@ -2142,7 +2149,7 @@ function exportData(o){
     if(!o.items) b.items = [];
     else if(!o.status) b.items.forEach(i=>{ i.st = 0; });
     if(!o.people){ b.isFriend = false; b.friends = []; }
-    if(!o.memo){ b.memo = ""; b.tags = []; b.artists.forEach(a=>{ a.memo = ""; a.hidden = false; }); }
+    if(!o.memo){ b.memo = ""; b.pmemo = ""; b.tags = []; b.artists.forEach(a=>{ a.memo = ""; a.hidden = false; }); }
   }
   if(!o.people) d.people = [];
   return {app:"boothcheck", v:1, d};
@@ -2203,7 +2210,7 @@ function makeText(o){
       const mark = includeSt ? (isFinal(i) ? "✅ " : (i.type==="pre" && i.st===1 ? "💸 " : "⬜ ")) : "- ";
       L.push(`  ${mark}${i.must?"★":""}[${typeLabel(i)}]${i.cat?"["+i.cat+"]":""} ${i.name} ${i.type==="free" ? "무료" : won(i.price)}${i.qty>1?" ×"+i.qty:""}${i.note?" ("+i.note+")":""}${i.maybe?" (고민중)":""}${i.sample?" 샘플: "+i.sample:""}`);
     }
-    for(const a of b.artists) L.push(`  작가: ${a.nick || "-"}${a.site ? " " + a.site : ""}${a.info ? "  인포: " + a.info : ""}${periodOf(a) ? "  선입금: " + periodText(periodOf(a)) : ""}${(a.imgs||[]).length ? "  인포 이미지: " + a.imgs.join(" ") : ""}`);
+    for(const a of b.artists) L.push(`  작가: ${a.nick || "-"}${a.site ? " " + a.site : ""}${a.info ? "  인포: " + a.info : ""}${periodOf(a) ? "  선입금: " + periodText(periodOf(a)) + (a.preLink ? " " + a.preLink : "") : ""}${(a.imgs||[]).length ? "  인포 이미지: " + a.imgs.join(" ") : ""}`);
     if(o.people && b.isFriend) L.push("  지인: " + (b.friends.length ? b.friends.join(", ") : "♥"));
     if(b.pickup) L.push("  선입금 수령 마감: " + b.pickup);
     if(b.times.length) L.push("  시간: " + b.times.slice().sort((x,y)=>(x.time||"99").localeCompare(y.time||"99")).map(x=>`${x.time||"--:--"} ${x.label}`).join(", "));
@@ -2282,7 +2289,7 @@ function renderBoothSheet(){
           const pers = boothPeriods(b);
           if(!b.pickup && !others.length && !pers.length) return "";
           const today = isEventToday(), nm = nowMin();
-          return `<div class="timebox">${pers.map(x=>`<div class="trow pick"><span class="tl">선입금${x.label ? " · " + esc(x.label) : ""}</span><b style="font-size:14px">${esc(periodText(x.p))}</b><span class="dl ${x.ps.cls}">${esc(x.ps.text.replace(/^선입금 /,""))}</span></div>`).join("")}
+          return `<div class="timebox">${pers.map(x=>`<div class="trow pick"><span class="tl">선입금${x.label ? " · " + esc(x.label) : ""}</span><b style="font-size:14px">${esc(periodText(x.p))}</b><span class="dl ${x.ps.cls}">${esc(x.ps.text.replace(/^선입금 /,""))}</span>${x.p.link ? `<a class="plink" href="${esc(x.p.link)}" target="_blank" rel="noopener noreferrer">폼 ↗</a>` : ""}</div>`).join("")}
             ${b.pickup ? `<div class="trow pick"><span class="tl">선입금 수령 마감</span><b>${b.pickup}</b>${ps && ps.cls ? `<span class="dl ${ps.cls}">${ps.cls==="ok" ? "수령 완료" : ps.cls==="late" ? "지남" : fmtLeft(ps.left) + " 전"}</span>` : (ps && ps.left!=null ? `<span class="dl">${fmtLeft(ps.left)} 남음</span>` : "")}</div>` : ""}
             ${others.map(x=>{ const l = today && x.time ? hmMin(x.time) - nm : null;
               return `<div class="trow"><span class="tl">${esc(x.label || "시간")}</span><b>${x.time || "--:--"}</b>${l!=null ? `<span class="dl ${l<0?"ok":l<=30?"soon":""}">${l<0?"지남":fmtLeft(l)+" 남음"}</span>` : ""}</div>`; }).join("")}</div>`; })()}
@@ -2311,12 +2318,17 @@ function renderBoothSheet(){
           <button class="btn pre" id="nAdd" style="padding:0 16px">추가</button>
         </div>
       </div>
-      <label class="field" style="margin:16px 0 0"><span>부스 메모</span>
-        <textarea class="inp" id="bMemo" placeholder="위치 힌트, 줄 서는 방향, 수령 방법 등" style="min-height:64px">${esc(b.memo)}</textarea></label>
+      ${lockedBooth(b) ? `${b.memo.trim() ? `<div class="field" style="margin:16px 0 0"><span>부스 메모 (원본)</span><div class="romemo">${esc(b.memo)}</div></div>` : ""}
+      <label class="field" style="margin:16px 0 0"><span>내 메모</span>
+        <textarea class="inp" id="bPMemo" placeholder="나만 보는 메모" style="min-height:64px">${esc(b.pmemo||"")}</textarea></label>`
+      : `<label class="field" style="margin:16px 0 0"><span>부스 메모</span>
+        <textarea class="inp" id="bMemo" placeholder="위치 힌트, 줄 서는 방향, 수령 방법 등" style="min-height:64px">${esc(b.memo)}</textarea></label>`}
     </div>`;
   renderBoothItems();
   const memo = document.getElementById("bMemo");
-  memo.addEventListener("input", ()=>{ b.memo = memo.value; save(); });
+  if(memo) memo.addEventListener("input", ()=>{ b.memo = memo.value; save(); });
+  const pmemo = document.getElementById("bPMemo");
+  if(pmemo) pmemo.addEventListener("input", ()=>{ b.pmemo = pmemo.value; save(); });
   document.getElementById("bItems").addEventListener("input", e=>{
     const t = e.target; if(t.dataset.amemo == null) return;
     const a = b.artists.find(x=>x.id===t.dataset.amemo); if(a){ a.memo = t.value.slice(0,200); save(); }
@@ -2481,8 +2493,9 @@ function renderBoothForm(){
       <input class="inp wide" data-ak="${k}" data-af="memo" value="${esc(a.memo||"")}" placeholder="메모">
       <div class="wide" style="font-size:12px;font-weight:700;color:var(--muted);margin-top:2px">인포 이미지 링크 (붙여 넣고 엔터, 여러 개 가능)</div>
       <div class="imged wide">${(a.imgs||[]).map((u,j)=>`<span class="imgchip"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add('bad')"><button type="button" data-akimgdel="${k}:${j}" aria-label="이미지 빼기">×</button></span>`).join("")}<input data-ak="${k}" data-af="imgIn" value="${esc(a.imgIn||"")}" placeholder="https://… 이미지 주소" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>
-      <div class="wide" style="font-size:12px;font-weight:700;color:var(--muted);margin-top:2px">선입금 기간 (시작일 · 마감일 · 마감 시각)</div>
+      <div class="wide" style="font-size:12px;font-weight:700;color:var(--muted);margin-top:2px">선입금 기간 (시작일 · 마감일 · 마감 시각) · 폼 링크</div>
       <div class="perrow wide"><input class="inp" type="date" data-ak="${k}" data-af="preFrom" value="${esc(a.preFrom||"")}" aria-label="선입금 시작일"><input class="inp" type="date" data-ak="${k}" data-af="preTo" value="${esc(a.preTo||"")}" aria-label="선입금 마감일"><input class="inp stime" data-ak="${k}" data-af="preToTime" value="${esc(a.preToTime||"")}" placeholder="23:59" inputmode="numeric" maxlength="5" aria-label="마감 시각"></div>
+      <input class="inp wide" data-ak="${k}" data-af="preLink" value="${esc(a.preLink||"")}" placeholder="선입금 폼 링크 (위치폼·구글폼 등, 선택)" autocapitalize="off" spellcheck="false">
     </div>`).join("");
   };
   fArt.addEventListener("input", e=>{ const t = e.target; if(t.dataset.ak==null) return; draft.artists[+t.dataset.ak][t.dataset.af] = t.value; });
@@ -2713,6 +2726,7 @@ function artistMenu(b, aid){
     a.site ? {icon:"link", label:"사이트 열기", hint:siteLabel(a.site), fn:()=>window.open(a.site, "_blank", "noopener")} : null,
     a.info ? {icon:"link", label:"인포 열기", fn:()=>window.open(a.info, "_blank", "noopener")} : null,
     (a.imgs||[]).length ? {icon:"eye", label:"인포 이미지 보기", hint:a.imgs.length + "장", fn:()=>openViewer(a.imgs, 0, {bid:b.id, aid:a.id})} : null,
+    a.preLink ? {icon:"link", label:"선입금 폼 열기", fn:()=>window.open(a.preLink, "_blank", "noopener")} : null,
     (a.imgs||[]).length ? {icon:"memo", label:"인포 보며 물품 적기", fn:()=>openViewer(a.imgs, 0, {bid:b.id, aid:a.id, write:true})} : null,
     {sep:1},
     {icon:"edit", label:"작가 정보 편집", fn:()=>openSheet({kind:"boothForm", id:b.id})}
@@ -3019,7 +3033,7 @@ function renderEvTab(){
     ${bt.length ? `<section class="card"><h2>부스 시간·이벤트</h2>
       ${bt.map(({b,x})=>`<button class="erow" data-act="open" data-id="${b.id}"><b class="et">${x.time||"--:--"}</b>${code(b)}<span class="el">${esc(x.label||"시간")}<small>${esc(b.name||"")}</small></span>${left(x.time)}</button>`).join("")}</section>` : ""}
     ${pickups.length ? `<section class="card"><h2>선입금 수령 마감</h2>${pickups.map(b=>`<button class="erow" data-act="open" data-id="${b.id}"><b class="et">${b.pickup}</b>${code(b)}<span class="el">${esc(b.name||"이름 없는 부스")}</span>${left(b.pickup)}</button>`).join("")}</section>` : ""}
-    ${periods.length ? `<section class="card"><h2>선입금 기간</h2>${periods.map(x=>`<button class="erow" data-act="open" data-id="${x.b.id}"><b class="et" style="width:auto;font-size:13px">${esc(periodText(x.p))}</b>${code(x.b)}<span class="el">${esc(x.label)}<small>${esc(x.b.name||"")}</small></span><span class="dl ${x.ps.cls}">${esc(x.ps.text.replace(/^선입금 /,""))}</span></button>`).join("")}</section>` : ""}
+    ${periods.length ? `<section class="card"><h2>선입금 기간</h2>${periods.map(x=>`<div class="erowl"><button class="erow" data-act="open" data-id="${x.b.id}"><b class="et" style="width:auto;font-size:13px">${esc(periodText(x.p))}</b>${code(x.b)}<span class="el">${esc(x.label)}<small>${esc(x.b.name||"")}</small></span><span class="dl ${x.ps.cls}">${esc(x.ps.text.replace(/^선입금 /,""))}</span></button>${x.p.link ? `<a class="plink" href="${esc(x.p.link)}" target="_blank" rel="noopener noreferrer" aria-label="선입금 폼 열기">폼 ↗</a>` : ""}</div>`).join("")}</section>` : ""}
     ${free.length ? `<section class="card"><h2>전프레·무료 배포</h2>
       ${free.map(({b,items})=>`<div class="cgroup"><button class="chead" data-act="open" data-id="${b.id}">${code(b)}<span class="nm">${esc(b.name||"이름 없는 부스")}</span><span class="cnt">${items.filter(isFinal).length}/${items.length}</span></button>${items.map(L=>itemRow(b,L)).join("")}</div>`).join("")
 }</section>` : ""}
@@ -3505,18 +3519,20 @@ function shareProj(st){
   const e = st.event;
   return {event:{name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, schedule:clone(e.schedule)},
     sections:[...st.sections], cats:[...st.cats], halls:clone(st.halls), marks:clone(st.marks),
-    booths:st.booths.map(b=>({id:b.id, section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, pickup:b.pickup||"", times:clone(b.times||[]), pos:clone(b.pos||null),
-      artists:(b.artists||[]).map(a=>({id:a.id, nick:a.nick||"", site:a.site||"", info:a.info||"", preFrom:a.preFrom||"", preTo:a.preTo||"", preToTime:a.preToTime||"", imgs:[...(a.imgs||[])]})),
+    booths:st.booths.map(b=>({id:b.id, section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, memo:b.memo||"", tags:[...(b.tags||[])], pickup:b.pickup||"", times:clone(b.times||[]), pos:clone(b.pos||null),
+      artists:(b.artists||[]).map(a=>({id:a.id, nick:a.nick||"", site:a.site||"", info:a.info||"", preFrom:a.preFrom||"", preTo:a.preTo||"", preToTime:a.preToTime||"", preLink:a.preLink||"", imgs:[...(a.imgs||[])]})),
       items:(b.items||[]).map(i=>({id:i.id, name:i.name, price:i.price||0, type:i.type, cat:i.cat||"", artist:i.artist||"", sample:i.sample||""}))}))};
 }
 function sanitizeProj(p){
   if(!p || typeof p !== "object" || !Array.isArray(p.booths)) throw new Error("bad data");
   const st = normalize({event:p.event, sections:p.sections, cats:p.cats, halls:p.halls, marks:p.marks, booths:p.booths});
   if(!(Array.isArray(p.halls) && p.halls.length)){ st.halls = []; st.marks = []; for(const b of st.booths) b.pos = null; }
-  return shareProj(st);
+  const out = shareProj(st);
+  if(!p.booths.some(b=>b && typeof b === "object" && ("memo" in b || "tags" in b))) out.booths.forEach(b=>{ delete b.memo; delete b.tags; });
+  return out;
 }
 function itemPersonal(i){ return !!(i && (i.st > 0 || String(i.note || "").trim() || i.must || !i.maybe)); }
-function boothPersonal(b){ return !!(b && (String(b.memo || "").trim() || (b.tags || []).length || b.isFriend || (b.friends || []).length || (b.items || []).some(itemPersonal))); }
+function boothPersonal(b){ return !!(b && (String(b.pmemo || "").trim() || b.isFriend || (b.friends || []).length || (b.items || []).some(itemPersonal))); }
 function mergeIds(local, remote, prev, keepLocal, upd, keepFn){
   const lm = new Map((local||[]).map(x=>[x.id, x])), rs = new Set(remote.map(x=>x.id)), ps = new Set((prev||[]).map(x=>x.id));
   const out = remote.map(r=>upd(lm.get(r.id), r));
@@ -3538,7 +3554,10 @@ function applyShared(st, P, prev, keepLocal){
   st.marks = mergeIds(st.marks, P.marks, prev && prev.marks, keepLocal, (l, r)=>Object.assign(l || {}, clone(r)));
   const pb = new Map(((prev && prev.booths) || []).map(b=>[b.id, b]));
   st.booths = mergeIds(st.booths, P.booths, prev && prev.booths, keepLocal, (l, r)=>{
-    const b = l || {id:r.id, memo:"", tags:[], isFriend:false, friends:[], items:[]};
+    const b = l || {id:r.id, memo:"", pmemo:"", tags:[], isFriend:false, friends:[], items:[]};
+    const pv0 = pb.get(r.id);
+    if("memo" in r){ if(keepLocal && l && String(l.memo||"").trim() && !String(l.pmemo||"").trim() && !(pv0 && "memo" in pv0) && l.memo !== r.memo) b.pmemo = l.memo; b.memo = r.memo; }
+    if("tags" in r) b.tags = [...r.tags];
     Object.assign(b, {section:r.section, num:r.num, half:r.half, span:r.span, size:r.half ? 1 : 2*r.span, name:r.name, pickup:r.pickup, times:clone(r.times), pos:clone(r.pos)});
     const la = new Map((b.artists||[]).map(a=>[a.id, a]));
     b.artists = r.artists.map(ra=>Object.assign(la.get(ra.id) || {memo:"", hidden:false}, clone(ra)));
@@ -4000,7 +4019,7 @@ async function clSubscribe(code){
   if(ex){ if(ex.id !== LIB.current) switchEvent(ex.id); toast(ex.link.role === "sub" ? "이미 구독 중인 행사예요" : "내가 공유 중인 행사예요"); return; }
   const got = await clFetchPub(code); if(!got) return;
   const {d, R} = got;
-  if(!await confirmBox(`‘${R.event.name || "이름 없는 행사"}’${d.ownerName ? ` (${d.ownerName}님)` : ""}\n부스 ${R.booths.length}개 · 물품 ${R.booths.reduce((n,b)=>n + b.items.length, 0)}개\n\n구독하면 원본이 바뀔 때마다 자동으로 업데이트돼요. 구매 체크·수량·메모·지인은 나만 봐요.`, "구독하기")) return;
+  if(!await confirmBox(`‘${R.event.name || "이름 없는 행사"}’${d.ownerName ? ` (${d.ownerName}님)` : ""}\n부스 ${R.booths.length}개 · 물품 ${R.booths.reduce((n,b)=>n + b.items.length, 0)}개\n\n구독하면 원본이 바뀔 때마다 자동으로 업데이트돼요. 구매 체크·수량·지인·내 메모는 나만 봐요.`, "구독하기")) return;
   const id = newLinkedEvent(R, d.ver, {role:"sub", code});
   CL.pubInfo[id] = {ver:d.ver, upd:d.upd, name:d.name, ownerName:d.ownerName || "", owner:d.owner};
   closeSheet(); switchEvent(id); setView("booths"); dropBlank();
@@ -4093,11 +4112,11 @@ function clLiveInner(){
   const busy = !!(CL.pubBusy[id] || CL.pubT[id]);
   const when = pi.upd ? fmtWhen(pi.upd) : "";
   if(!l) return `<h2>실시간 공유</h2>
-    <p class="desc">공유 코드를 한 번만 보내면, 내가 행사를 고칠 때마다 받은 사람에게 <b>자동으로 반영</b>돼요. 부스·작가·배치도·물품(이름·가격)이 공유되고, 구매 체크·수량·메모·태그·지인은 각자만 봐요.</p>
+    <p class="desc">공유 코드를 한 번만 보내면, 내가 행사를 고칠 때마다 받은 사람에게 <b>자동으로 반영</b>돼요. 부스·작가·배치도·물품(이름·가격)과 부스 태그·메모가 공유되고, 구매 체크·수량·지인·작가 메모는 각자만 봐요.</p>
     <button class="btn pre block" data-act="clShare">${CL.user ? "실시간 공유 시작" : "로그인하고 시작하기"}</button>
     <p class="desc" style="margin:10px 0 0">받은 코드(BCL-…, BCE-…)는 아래 ‘불러오기’에 붙여 넣으세요.</p>`;
   if(l.role === "sub") return `<h2>구독 중</h2>
-    <p class="desc">${pi.ownerName ? `<b>${esc(pi.ownerName)}</b>님의 행사예요. ` : ""}원본이 바뀌면 자동으로 업데이트돼요. 부스·작가·물품 정보는 원본에서만 고칠 수 있고, 구매 체크·수량·메모·태그·지인, 내가 직접 추가한 부스·물품은 내 것으로 남아요.</p>
+    <p class="desc">${pi.ownerName ? `<b>${esc(pi.ownerName)}</b>님의 행사예요. ` : ""}원본이 바뀌면 자동으로 업데이트돼요. 부스·작가·물품 정보와 태그·부스 메모는 원본에서만 고칠 수 있어요. 구매 체크·수량·지인·내 메모, 내가 직접 추가한 부스·물품은 내 것으로 남아요.</p>
     ${codeBox("BCL-" + l.code, "구독 코드")}
     <p class="clst">${when ? `마지막 업데이트 ${when}` : "연결하는 중…"}${base ? ` · 버전 ${base.v}` : ""}</p>
     <div class="btnrow"><button class="btn ghost" data-act="clCopy" data-v="code">코드 복사</button><button class="btn ghost" data-act="clCopy" data-v="link">링크 복사</button></div>
@@ -4146,10 +4165,10 @@ function clRefreshUI(){
 }
 function lockBoothForm(){
   const body = sheet.querySelector(".sh-body"); if(!body) return;
-  body.insertAdjacentHTML("afterbegin", `<p class="lknote">구독한 행사의 원본 부스예요. 지인·태그·메모, 작가 메모만 바꿀 수 있어요.</p>`);
-  ["#fSec button", "#fNum", "#fSize button", "#fName", "#fPick", "#fTimes input", "#fTimes button", "#fArtAdd"].forEach(q=>body.querySelectorAll(q).forEach(el=>{ el.disabled = true; }));
+  body.insertAdjacentHTML("afterbegin", `<p class="lknote">구독한 행사의 원본 부스예요. 지인과 작가 메모만 바꿀 수 있어요. 나만 보는 메모는 부스 화면의 ‘내 메모’에 적어 주세요.</p>`);
+  ["#fSec button", "#fNum", "#fSize button", "#fName", "#fPick", "#fTimes input", "#fTimes button", "#fArtAdd", "#fTags input", "#fMemo"].forEach(q=>body.querySelectorAll(q).forEach(el=>{ el.disabled = true; }));
   body.querySelectorAll("#fArtists input").forEach(el=>{ if(el.dataset.af !== "memo") el.disabled = true; });
-  body.querySelectorAll("#fArtists [data-akdel], #fArtists [data-akimgdel], #fArtists [data-af=imgIn], #fTimeSug, [data-act=delBooth]").forEach(el=>{ el.style.display = "none"; });
+  body.querySelectorAll("#fArtists [data-akdel], #fArtists [data-akimgdel], #fArtists [data-af=imgIn], #fTimeSug, #fTagSug, #fTags [data-tgrm], [data-act=delBooth]").forEach(el=>{ el.style.display = "none"; });
 }
 function lockItemForm(){
   const body = sheet.querySelector(".sh-body"); if(!body) return;
@@ -4376,8 +4395,10 @@ document.addEventListener("click", async e=>{
         const apf = validDate(a.preFrom), apt = validDate(a.preTo), aptt = (a.preToTime||"").trim() ? normTime(a.preToTime) : "";
         if(aptt === null){ toast(`‘${nick || "작가"}’ 선입금 마감 시각을 23:59처럼 적어 주세요`); return; }
         if(apf && apt && apf > apt){ toast(`‘${nick || "작가"}’ 선입금 시작일이 마감일보다 늦어요`); return; }
+        const plk = (a.preLink||"").trim() ? normLink(a.preLink) : "";
+        if(plk === null){ toast(`‘${nick || "작가"}’ 선입금 폼 링크를 https://로 시작하게 적어 주세요`); return; }
         const imgs = [...new Set([...(a.imgs||[]), ...parseUrls(a.imgIn)])].slice(0,12);
-        if(nick || site || info || amemo || apf || apt || imgs.length) artists.push({id:a.id || uid(), nick, site, info, memo:amemo, preFrom:apf, preTo:apt, preToTime:aptt, hidden:!!a.hidden, imgs});
+        if(nick || site || info || amemo || apf || apt || plk || imgs.length) artists.push({id:a.id || uid(), nick, site, info, memo:amemo, preFrom:apf, preTo:apt, preToTime:aptt, preLink:plk, hidden:!!a.hidden, imgs});
       }
       const fields = {section:d.section, num:d.num, half:d.half, span:d.half ? 1 : (d.span||1), size:d.half ? 1 : 2*(d.span||1), name:d.name.trim(), artists, pickup:pk, times, isFriend:!!(d.isFriend || (d.friendsText||"").trim()), friends:[...new Set((d.friendsText||"").split(/[,，、]/).map(x=>x.trim().slice(0,30)).filter(Boolean))], memo:d.memo, tags:[...d.tags]};
       if(sh.id && !findBooth(sh.id)){ toast("다른 곳에서 지워진 부스예요"); closeSheet(); return; }
