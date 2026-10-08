@@ -530,6 +530,7 @@ a.anick{background:var(--pre-soft);color:var(--pre)}
 .ivempty{font-size:14px;color:var(--muted);margin:4px 0 0;line-height:1.6}
 .vchips{display:flex;flex-wrap:wrap;gap:6px}
 .vchip{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:17px;font-weight:700;font-size:15px;color:#fff;background:var(--sc)}
+.vchip.tagj{border:0;cursor:pointer;font:inherit;font-weight:700;font-size:15px}
 .vchip small{font-weight:500;font-size:12px;opacity:.85}
 .vchip.cat{color:var(--tc);background:var(--tb)}
 .ckfold{width:100%;display:flex;align-items:center;gap:8px;margin-top:10px;height:38px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-size:14px;font-weight:700;color:var(--text)}
@@ -1779,6 +1780,21 @@ function infoCardSec(){
       </div>
     </div>`;
 }
+function infoCardTag(){
+  const tags = allTags();
+  if(!infoEdit.has("tag")){
+    return `<div class="card">${cardHead("부스 태그","tag")}${tags.length ? `<p class="desc">누르면 그 태그가 달린 부스만 모아 봐요.</p><div class="vchips">${tags.map(([t,n])=>`<button type="button" class="vchip cat tagj" data-act="tagjump" data-tag="${esc(t)}">#${esc(t)} <small>${n}개</small></button>`).join("")}</div>` : `<p class="ivempty">아직 태그가 없어요. 부스 편집에서 태그를 달면 여기서 한꺼번에 이름을 바꾸거나 지울 수 있어요.</p>`}</div>`;
+  }
+  return `<div class="card">${cardHead("부스 태그","tag")}
+      <p class="desc">이름을 바꾸면 그 태그가 달린 부스 전체에 바로 반영돼요. 이미 있는 태그 이름으로 바꾸면 두 태그가 하나로 합쳐져요.</p>
+      ${tags.length ? tags.map(([t,n])=>`<div class="secrow">
+          <span class="sw2" style="background:var(--muted);font-family:var(--body);font-size:15px;font-weight:700">#</span>
+          <input class="inp" data-act="tagname" data-old="${esc(t)}" value="${esc(t)}" maxlength="20" aria-label="태그 이름">
+          <span class="cnt">${n}개</span>
+          <button class="iconbtn danger" data-act="tagdel" data-tag="${esc(t)}" aria-label="태그 지우기">${ICON_TRASH}</button>
+        </div>`).join("") : `<p class="ivempty">아직 태그가 없어요.</p>`}
+    </div>`;
+}
 function infoCardCat(){
   const n = c=>{ let k = 0; for(const b of S.booths) for(const i of b.items) if(i.cat===c) k++; return k; };
   if(!infoEdit.has("cat")){
@@ -1831,7 +1847,7 @@ function renderInfo(){
       <div class="btnrow"><button class="btn ghost" id="dlBtn" data-act="download" style="display:none">백업 파일 저장</button>
         <label class="btn ghost" style="position:relative">백업 파일 열기<input type="file" id="fileIn" accept=".json,.txt,application/json,text/plain" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label></div>
     </div>`)}
-    ${sgroup("이 행사 설정", infoCardSec() + infoCardCat())}
+    ${sgroup("이 행사 설정", infoCardSec() + infoCardCat() + infoCardTag())}
     ${sgroup("행사 관리", `<div class="card">
       <div class="mgrow"><div><b>행사 목록</b><small>다른 행사로 바꾸거나 새 행사를 만들어요. 맨 위 행사 이름을 눌러도 돼요.</small></div><button class="btn ghost sm" data-act="events">열기</button></div>
       <div class="mgrow"><div><b>이 행사 지우기</b><small>부스·물품·체크 기록이 모두 사라지고 되돌릴 수 없어요.</small></div><button class="btn danger sm" data-act="reset">지우기</button></div>
@@ -4527,6 +4543,15 @@ document.addEventListener("click", async e=>{
       S.cats.push(v); save(); renderInfo(); toast(`‘${v}’ 종류를 추가했어요`); break;
     }
     case "catup": { const i = +t.dataset.i; if(i<=0) return; [S.cats[i-1], S.cats[i]] = [S.cats[i], S.cats[i-1]]; save(); renderInfo(); break; }
+    case "tagjump": { tagFilter = t.dataset.tag; secFilter = "all"; query = ""; setView("booths"); break; }
+    case "tagdel": {
+      const tg = t.dataset.tag, n = S.booths.filter(b=>b.tags.includes(tg)).length;
+      if(await confirmBox(`‘#${tg}’ 태그를 지울까요?\n이 태그가 달린 부스 ${n}개에서 모두 빠져요. 부스는 지워지지 않아요.`, "삭제", true)){
+        for(const b of S.booths) b.tags = b.tags.filter(x=>x!==tg);
+        if(tagFilter===tg) tagFilter = null; save(); renderInfo(); toast(`‘#${tg}’ 태그를 지웠어요`);
+      }
+      break;
+    }
     case "catdel": {
       const c = t.dataset.cat; let n = 0; for(const b of S.booths) for(const i of b.items) if(i.cat===c) n++;
       if(await confirmBox(n ? `‘${c}’ 종류를 지울까요?\n이 종류로 고른 물품 ${n}개는 ‘종류 없음’이 돼요.` : `‘${c}’ 종류를 지울까요?`, "삭제", true)){
@@ -4634,6 +4659,19 @@ document.addEventListener("change", e=>{
       if(!tm){ toast("시간을 09:00처럼 24시간제로 적어 주세요"); t.value = x.time; return; }
       x.time = tm; save(); renderSchList(); renderTop();
     }
+    return;
+  }
+  if(t.dataset.act === "tagname"){
+    const old = t.dataset.old, v = cleanTag(t.value);
+    if(!v || v === old){ t.value = old; return; }
+    const exists = S.booths.some(b=>b.tags.includes(v));
+    const go = ()=>{
+      for(const b of S.booths) if(b.tags.includes(old)) b.tags = [...new Set(b.tags.map(x=>x===old ? v : x))];
+      if(tagFilter===old) tagFilter = v;
+      save(); renderInfo(); toast(exists ? `#${old} → #${v} 로 합쳤어요` : `#${old} → #${v}`);
+    };
+    if(exists) confirmBox(`‘#${v}’ 태그가 이미 있어요.\n‘#${old}’를 ‘#${v}’로 합칠까요?`, "합치기").then(ok=>{ if(ok) go(); else t.value = old; });
+    else go();
     return;
   }
   if(t.dataset.act === "catname"){
