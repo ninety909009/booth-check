@@ -1024,48 +1024,48 @@ function normalize(d){
   const s = defaultState();
   if(!d || typeof d !== "object") return s;
   if(d.event && typeof d.event === "object"){
-    for(const k of Object.keys(s.event)){ if(k !== "schedule") s.event[k] = typeof d.event[k] === "string" ? d.event[k] : ""; }
-    if(Array.isArray(d.event.schedule)) s.event.schedule = d.event.schedule.filter(x=>x&&typeof x==="object").map(x=>({
-      id:sid(x.id)||uid(), time:/^\d{2}:\d{2}$/.test(x.time)?x.time:"", text:String(x.text||"")
+    for(const k of Object.keys(s.event)){ if(k !== "schedule") s.event[k] = typeof d.event[k] === "string" ? d.event[k].slice(0, k === "info" ? 3000 : 200) : ""; }
+    if(Array.isArray(d.event.schedule)) s.event.schedule = d.event.schedule.slice(0,300).filter(x=>x&&typeof x==="object").map(x=>({
+      id:sid(x.id)||uid(), time:/^\d{2}:\d{2}$/.test(str(x.time))?x.time:"", text:str(x.text||"").slice(0,200)
     }));
   }
-  if(Array.isArray(d.sections)) s.sections = d.sections.map(x=>String(x).trim()).filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i);
-  const cint = (v,lo,hi,df)=>{ v = Math.round(+v); return isNaN(v) ? df : Math.max(lo, Math.min(hi, v)); };
+  if(Array.isArray(d.sections)) s.sections = d.sections.slice(0,100).map(x=>str(x).trim().slice(0,20)).filter(x=>x && !isReserved(x)).filter((x,i,a)=>a.indexOf(x)===i);
+  const cint = (v,lo,hi,df)=>{ v = Math.round(num(v)); return isNaN(v) ? df : Math.max(lo, Math.min(hi, v)); };
   if(Array.isArray(d.halls) && d.halls.length){
-    s.halls = d.halls.filter(h=>h&&typeof h==="object").map(h=>({id:sid(h.id)||uid(), name:String(h.name||"관").slice(0,30), w:cint(h.w,8,150,36), h:cint(h.h,6,150,24)}));
+    s.halls = d.halls.slice(0,30).filter(h=>h&&typeof h==="object").map(h=>({id:sid(h.id)||uid(), name:str(h.name||"관").slice(0,30), w:cint(h.w,8,150,36), h:cint(h.h,6,150,24)}));
     if(!s.halls.length) s.halls = defaultState().halls;
   }
   const hallIds = new Set(s.halls.map(h=>h.id));
-  if(Array.isArray(d.marks)) s.marks = d.marks.filter(m=>m&&typeof m==="object"&&hallIds.has(String(m.hall))).map(m=>({
-    id:sid(m.id)||uid(), hall:String(m.hall), x:cint(m.x,-999,999,0), y:cint(m.y,-999,999,0), w:cint(m.w,1,200,2), h:cint(m.h,1,200,2),
-    label:String(m.label||""), color:/^#[0-9a-fA-F]{6}$/.test(m.color)?m.color:"#8A90AD"
+  if(Array.isArray(d.marks)) s.marks = d.marks.slice(0,1000).filter(m=>m&&typeof m==="object"&&hallIds.has(str(m.hall))).map(m=>({
+    id:sid(m.id)||uid(), hall:str(m.hall), x:cint(m.x,-999,999,0), y:cint(m.y,-999,999,0), w:cint(m.w,1,200,2), h:cint(m.h,1,200,2),
+    label:str(m.label||"").slice(0,60), color:/^#[0-9a-fA-F]{6}$/.test(m.color)?m.color:"#8A90AD"
   }));
-  if(Array.isArray(d.people)) s.people = d.people.filter(x=>x&&typeof x==="object").map(x=>({
-    id:sid(x.id)||uid(), nick:String(x.nick||"").trim().slice(0,30), memo:String(x.memo||"").slice(0,500), boothId:sid(x.boothId), met:!!x.met,
-    gifts:Array.isArray(x.gifts) ? x.gifts.filter(g=>g&&typeof g==="object").map(g=>({id:sid(g.id)||uid(), name:String(g.name||"").trim().slice(0,60), done:!!g.done})).filter(g=>g.name) : []
+  if(Array.isArray(d.people)) s.people = d.people.slice(0,1000).filter(x=>x&&typeof x==="object").map(x=>({
+    id:sid(x.id)||uid(), nick:str(x.nick||"").trim().slice(0,30), memo:str(x.memo||"").slice(0,500), boothId:sid(x.boothId), met:!!x.met,
+    gifts:Array.isArray(x.gifts) ? x.gifts.slice(0,100).filter(g=>g&&typeof g==="object").map(g=>({id:sid(g.id)||uid(), name:str(g.name||"").trim().slice(0,60), done:!!g.done})).filter(g=>g.name) : []
   }));
-  if(Array.isArray(d.cats)) s.cats = [...new Set(d.cats.map(c=>String(c||"").trim().slice(0,20)).filter(Boolean))];
-  const normPos = p => (p && typeof p==="object" && hallIds.has(String(p.hall))) ? {hall:String(p.hall), x:cint(p.x,-999,999,0), y:cint(p.y,-999,999,0), rot:p.rot?1:0} : null;
+  if(Array.isArray(d.cats)) s.cats = [...new Set(d.cats.slice(0,200).map(c=>str(c||"").trim().slice(0,20)).filter(c=>c && !isReserved(c)))];
+  const normPos = p => (p && typeof p==="object" && hallIds.has(str(p.hall))) ? {hall:str(p.hall), x:cint(p.x,-999,999,0), y:cint(p.y,-999,999,0), rot:p.rot?1:0} : null;
   if(Array.isArray(d.booths)){
-    s.booths = d.booths.filter(b=>b && typeof b==="object").map(b=>({
+    s.booths = d.booths.slice(0,5000).filter(b=>b && typeof b==="object").map(b=>({
       id: sid(b.id) || uid(),
-      section: String(b.section || ""),
-      num: String(b.num || ""),
+      section: (t=>isReserved(t) ? "" : t)(str(b.section || "").trim().slice(0,20)),
+      num: str(b.num || "").slice(0,12),
       half: (b.half===1||b.half===2) ? b.half : (b.half===0 ? 0 : (b.size===2 ? 0 : 1)),
-      span: Math.max(1, Math.min(4, Math.round(+b.span || 1))),
-      tags: Array.isArray(b.tags) ? [...new Set(b.tags.map(cleanTag).filter(Boolean))].slice(0,12) : [],
-      name: String(b.name || ""),
-      memo: String(b.memo || ""),
-      pmemo: String(b.pmemo || "").slice(0,2000),
+      span: Math.max(1, Math.min(4, Math.round(num(b.span) || 1))),
+      tags: Array.isArray(b.tags) ? [...new Set(b.tags.slice(0,50).map(cleanTag).filter(t=>t && !isReserved(t)))].slice(0,12) : [],
+      name: str(b.name || "").slice(0,100),
+      memo: str(b.memo || "").slice(0,3000),
+      pmemo: str(b.pmemo || "").slice(0,2000),
       _link: normLink(b.link) || "",
       pickup: normTime(b.pickup) || "",
-      artists: Array.isArray(b.artists) ? b.artists.filter(a=>a&&typeof a==="object").map(a=>({id:sid(a.id)||uid(), nick:String(a.nick||"").trim().slice(0,30), site:normSite(a.site)||"", info:normLink(a.info)||"", memo:String(a.memo||"").slice(0,200), preFrom:validDate(a.preFrom), preTo:validDate(a.preTo), preToTime:normTime(a.preToTime)||"", preLink:normLink(a.preLink)||"", preKind:a.preKind==="survey" ? "survey" : "", hidden:!!a.hidden, imgs:Array.isArray(a.imgs) ? [...new Set(a.imgs.map(u=>normLink(u)).filter(Boolean))].slice(0,12) : []})).filter(a=>a.imgs.length||a.nick||a.site||a.info||a.memo||a.preFrom||a.preTo||a.preLink) : [],
-      friends: Array.isArray(b.friends) ? [...new Set(b.friends.map(f=>String(f||"").trim().slice(0,30)).filter(Boolean))] : (String(b.friend||"").trim() ? [String(b.friend).trim().slice(0,30)] : []),
-      isFriend: !!b.isFriend || !!String(b.friend||"").trim() || (Array.isArray(b.friends) && b.friends.some(f=>String(f||"").trim())),
+      artists: Array.isArray(b.artists) ? b.artists.slice(0,30).filter(a=>a&&typeof a==="object").map(a=>({id:sid(a.id)||uid(), nick:str(a.nick||"").trim().slice(0,30), site:normSite(a.site)||"", info:normLink(a.info)||"", memo:str(a.memo||"").slice(0,200), preFrom:validDate(a.preFrom), preTo:validDate(a.preTo), preToTime:normTime(a.preToTime)||"", preLink:normLink(a.preLink)||"", preKind:a.preKind==="survey" ? "survey" : "", hidden:!!a.hidden, imgs:Array.isArray(a.imgs) ? [...new Set(a.imgs.map(u=>normLink(u)).filter(Boolean))].slice(0,12) : []})).filter(a=>a.imgs.length||a.nick||a.site||a.info||a.memo||a.preFrom||a.preTo||a.preLink) : [],
+      friends: Array.isArray(b.friends) ? [...new Set(b.friends.map(f=>str(f||"").trim().slice(0,30)).filter(Boolean))] : (str(b.friend||"").trim() ? [str(b.friend).trim().slice(0,30)] : []),
+      isFriend: !!b.isFriend || !!str(b.friend||"").trim() || (Array.isArray(b.friends) && b.friends.some(f=>str(f||"").trim())),
       _bp: {preFrom: validDate(b.preFrom), preTo: validDate(b.preTo), preToTime: normTime(b.preToTime) || ""},
-      times: Array.isArray(b.times) ? b.times.filter(x=>x&&typeof x==="object").map(x=>({label:String(x.label||"").trim().slice(0,60), time:normTime(x.time)||""})).filter(x=>x.label||x.time) : [],
+      times: Array.isArray(b.times) ? b.times.slice(0,30).filter(x=>x&&typeof x==="object").map(x=>({label:str(x.label||"").trim().slice(0,60), time:normTime(x.time)||""})).filter(x=>x.label||x.time) : [],
       pos: normPos(b.pos),
-      items: Array.isArray(b.items) ? b.items.filter(i=>i&&typeof i==="object").flatMap(flattenSubs).map(normItem) : []
+      items: Array.isArray(b.items) ? b.items.slice(0,500).filter(i=>i&&typeof i==="object").flatMap(flattenSubs).slice(0,500).map(normItem) : []
     }));
     for(const b of s.booths) for(const i of b.items) if(i.cat && !s.cats.includes(i.cat)) s.cats.push(i.cat);
     for(const b of s.booths){
@@ -1132,7 +1132,10 @@ let imeComposing = false;
 document.addEventListener("compositionstart", ()=>{ imeComposing = true; }, true);
 document.addEventListener("compositionend", ()=>{ imeComposing = false; }, true);
 function imeBusy(e){ return !!(e && e.isComposing) || imeComposing; }
-function sid(v){ const t = String(v == null ? "" : v); return /^[A-Za-z0-9_-]{1,40}$/.test(t) ? t : ""; }
+function isReserved(t){ return t === "__proto__" || t === "constructor" || t === "prototype" || t === "hasOwnProperty" || t === "toString" || t === "valueOf" || t === "isPrototypeOf"; }
+function num(v){ return typeof v === "number" ? v : typeof v === "string" ? +v : typeof v === "boolean" ? +v : NaN; }
+function str(v){ return v == null ? "" : typeof v === "string" ? v : (typeof v === "number" || typeof v === "boolean") ? String(v) : ""; }
+function sid(v){ const t = str(v); return /^[A-Za-z0-9_-]{1,40}$/.test(t) && !isReserved(t) ? t : ""; }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function won(n){ return (n||0).toLocaleString("ko-KR") + "원"; }
@@ -1146,14 +1149,14 @@ function boothCode(b){
   return b.section + (n || "?");
 }
 function normLink(v){
-  v = String(v||"").trim(); if(!v) return "";
+  v = str(v||"").trim(); if(!v) return "";
   if(/^https?:\/\/\S+$/i.test(v)) return v;
   if(/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(v)) return "https://" + v;
   return null;
 }
 function linkHost(u){ try{ return new URL(u).hostname.replace(/^www\./,""); }catch(e){ return u; } }
 function normSite(v){
-  v = String(v||"").trim(); if(!v) return "";
+  v = str(v||"").trim(); if(!v) return "";
   const m = v.match(/^@([A-Za-z0-9_]{1,30})$/); if(m) return "https://x.com/" + m[1];
   return normLink(v);
 }
@@ -1251,7 +1254,7 @@ function allTags(){
   const m = new Map(); for(const b of S.booths) for(const t of b.tags) m.set(t, (m.get(t)||0)+1);
   return [...m.entries()].sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0],"ko"));
 }
-function cleanTag(t){ return String(t||"").replace(/^#+/,"").replace(/\s+/g," ").trim().slice(0,20); }
+function cleanTag(t){ return str(t||"").replace(/^#+/,"").replace(/\s+/g," ").trim().slice(0,20); }
 function sortedBooths(list){
   return (list || S.booths).slice().sort((a,b)=>{
     const sa = S.sections.indexOf(a.section), sb = S.sections.indexOf(b.section);
@@ -1267,26 +1270,26 @@ function amt(i){
   return i.price * i.qty;
 }
 function normSub(x, type){
-  return {id:sid(x.id)||uid(), name:String(x.name||"").trim().slice(0,40),
-    price:(x.price===null||x.price===undefined||x.price==="") ? null : Math.max(0, Math.round(+x.price||0)),
-    want:Math.max(0, Math.round(+x.want||0)), st:Math.max(0, Math.min(type==="pre" ? 2 : 1, Math.round(+x.st||0))), note:String(x.note||"").slice(0,120)};
+  return {id:sid(x.id)||uid(), name:str(x.name||"").trim().slice(0,40),
+    price:(x.price===null||x.price===undefined||x.price==="") ? null : Math.max(0, Math.round(num(x.price)||0)),
+    want:Math.max(0, Math.round(num(x.want)||0)), st:Math.max(0, Math.min(type==="pre" ? 2 : 1, Math.round(num(x.st)||0))), note:str(x.note||"").slice(0,120)};
 }
 function flattenSubs(i){
-  const subs = Array.isArray(i.subs) ? i.subs.filter(x=>x && typeof x==="object" && String(x.name||"").trim()) : [];
+  const subs = Array.isArray(i.subs) ? i.subs.filter(x=>x && typeof x==="object" && str(x.name||"").trim()) : [];
   if(!subs.length) return [i];
-  return subs.map(x=>({...i, id:sid(x.id)||uid(), name:`${i.name} ${String(x.name).trim()}`.trim(), price:(x.price===null||x.price===undefined||x.price==="") ? i.price : x.price,
-    want:+x.want||0, st:+x.st||0, note:String(x.note||"") || i.note, subs:undefined}));
+  return subs.map(x=>({...i, id:sid(x.id)||uid(), name:`${i.name} ${str(x.name).trim()}`.trim(), price:(x.price===null||x.price===undefined||x.price==="") ? i.price : x.price,
+    want:num(x.want)||0, st:num(x.st)||0, note:str(x.note||"") || i.note, subs:undefined}));
 }
 function normItem(i){
   const type = ["pre","on","free"].includes(i.type) ? i.type : "on";
   const subs = [];
   return {
-    id: sid(i.id) || uid(), name: String(i.name || "").slice(0,100), price: Math.max(0, Math.round(+i.price || 0)), type,
-    st: subs.length ? 0 : Math.max(0, Math.min(type === "pre" ? 2 : 1, Math.round(+i.st || 0))),
-    want: Math.max(1, i.want != null ? Math.round(+i.want || 0) : optQty(i)),
+    id: sid(i.id) || uid(), name: str(i.name || "").slice(0,100), price: Math.max(0, Math.round(num(i.price) || 0)), type,
+    st: subs.length ? 0 : Math.max(0, Math.min(type === "pre" ? 2 : 1, Math.round(num(i.st) || 0))),
+    want: Math.max(1, i.want != null ? Math.round(num(i.want) || 0) : optQty(i)),
     sample: normLink(i.sample) || "", artist: sid(i.artist), must: !!i.must,
-    note: (String(i.note || "") + optNote(i.opts)).trim().slice(0,120),
-    cat: String(i.cat || "").trim().slice(0,20), maybe: (!!i.maybe || (i.want != null && !(+i.want > 0))) && !i.must
+    note: (str(i.note || "") + optNote(i.opts)).trim().slice(0,120),
+    cat: str(i.cat || "").trim().slice(0,20), maybe: (!!i.maybe || (i.want != null && !(num(i.want) > 0))) && !i.must
   };
 }
 function subPrice(i, x){ return x.price == null ? i.price : x.price; }
@@ -1310,11 +1313,11 @@ function findLine(b, iid, sid){
   return mkLine(b, i, null);
 }
 function typeOrder(x){ return x.type==="pre" ? 0 : x.type==="on" ? 1 : 2; }
-function optList(opts){ return Array.isArray(opts) ? opts.filter(o=>o && String(o.name||"").trim()) : []; }
-function optQty(i){ const o = optList(i.opts).filter(x=>+x.qty > 0); return o.length ? o.reduce((n,x)=>n + Math.round(+x.qty), 0) : Math.max(1, Math.round(+i.qty || 1)); }
-function optNote(opts){ const o = optList(opts).filter(x=>+x.qty > 0); if(!o.length) return ""; return " 옵션: " + o.map(x=>String(x.name).trim() + (+x.qty > 1 ? "×" + Math.round(+x.qty) : "")).join(", "); }
+function optList(opts){ return Array.isArray(opts) ? opts.filter(o=>o && str(o.name||"").trim()) : []; }
+function optQty(i){ const o = optList(i.opts).filter(x=>num(x.qty) > 0); return o.length ? o.reduce((n,x)=>n + Math.round(num(x.qty)), 0) : Math.max(1, Math.round(num(i.qty) || 1)); }
+function optNote(opts){ const o = optList(opts).filter(x=>num(x.qty) > 0); if(!o.length) return ""; return " 옵션: " + o.map(x=>str(x.name).trim() + (num(x.qty) > 1 ? "×" + Math.round(num(x.qty)) : "")).join(", "); }
 function typeLabel(i){ return i.type==="pre" ? "선입금" : i.type==="free" ? "무료" : "현장"; }
-function validDate(d){ return /^\d{4}-\d{2}-\d{2}$/.test(d||"") ? d : ""; }
+function validDate(d){ return typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : ""; }
 function md(d){ const p = d.split("-"); return `${+p[1]}/${+p[2]}`; }
 function periodOf(o){ return (o && (o.preFrom || o.preTo || o.preLink)) ? {from:o.preFrom, to:o.preTo, time:o.preToTime, link:o.preLink||"", kind:o.preKind==="survey" ? "survey" : ""} : null; }
 function kindWord(p){ return p && (p.kind === "survey" || p.preKind === "survey") ? "수요조사" : "선입금"; }
@@ -1468,7 +1471,7 @@ function totals(){
   return {pre,preF,on,onF,paid,unpaid,maybe,maybeAmt};
 }
 function normTime(v){
-  v = String(v||"").trim(); if(!v) return "";
+  v = str(v||"").trim(); if(!v) return "";
   let h, m;
   const mm = v.match(/^(\d{1,2})\s*[:.시h]\s*(\d{0,2})/i);
   if(mm){ h = +mm[1]; m = mm[2] ? +mm[2] : 0; }
@@ -1478,7 +1481,7 @@ function normTime(v){
     if(d.length <= 2){ h = +d; m = 0; } else { h = +d.slice(0, d.length-2); m = +d.slice(-2); }
   }
   if(h > 23 || m > 59) return null;
-  return String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0");
+  return str(h).padStart(2,"0") + ":" + str(m).padStart(2,"0");
 }
 function sortedSch(){ return S.event.schedule.slice().sort((a,b)=>(a.time||"99").localeCompare(b.time||"99")); }
 function isEventToday(){ const d = ddayInfo(); return !!d && d.c === "today"; }
@@ -1949,7 +1952,7 @@ setInterval(()=>{
 const CELL = 44;
 const MARK_COLORS = ["#8A90AD","#E5B400","#3FB37F","#3AA6D8","#E8833A","#B36BD6"];
 let mapHall = null, mapEdit = false, mapSel = null, mapG = null, mapRaf = false;
-const mapViews = {};
+const mapViews = Object.create(null);
 const $ = id => document.getElementById(id);
 function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
 function clampZ(z){ return clamp(z, 0.2, 3); }
@@ -1987,7 +1990,7 @@ function renderHallChips(){
   el.innerHTML = S.halls.map(h=>`<button class="chip" data-act="hall" data-hid="${h.id}" aria-pressed="${h.id===mapHall}">${esc(h.name)}</button>`).join("")
     + (mapEdit ? `<button class="chip" data-act="hallset">관 설정</button><button class="chip" data-act="halladd">+ 관</button>` : "");
 }
-const mapFrames = {};
+const mapFrames = Object.create(null);
 function contentBounds(hid){
   let x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
   for(const b of S.booths) if(b.pos && b.pos.hall===hid){ const f = fp(b); x0=Math.min(x0,b.pos.x); y0=Math.min(y0,b.pos.y); x1=Math.max(x1,b.pos.x+f.w); y1=Math.max(y1,b.pos.y+f.h); }
@@ -2328,7 +2331,7 @@ async function doImport(raw){
   try{ obj = await parseCode(raw); }catch(e){ toast(e.message && /[가-힣]/.test(e.message) ? e.message : "코드가 잘렸거나 잘못됐어요"); return; }
   if(!obj || obj.app !== "boothcheck" || !obj.d){ toast("부스 체크용 코드가 아니에요"); return; }
   const nb = Array.isArray(obj.d.booths) ? obj.d.booths.length : 0;
-  const nm = (obj.d.event && obj.d.event.name) || "이름 없는 행사";
+  const nm = str(obj.d.event && obj.d.event.name).slice(0,100) || "이름 없는 행사";
   const choice = await choiceBox(`‘${nm}’ 코드예요. 부스 ${nb}개가 들어 있어요.\n어떻게 불러올까요?`, [{label:"새 행사로 추가", v:"new", cls:"pre"}, {label:"지금 행사 덮어쓰기", v:"over", cls:"danger"}]);
   if(!choice) return;
   if(choice === "new"){ const id = addEvent(normalize(obj.d)); switchEvent(id); toast(`‘${nm}’를 새 행사로 추가했어요`); }
@@ -3632,8 +3635,8 @@ function roleName(r){ return r === "sub" ? "구독" : r === "own" ? "공유 중"
 function roleBadge(id){ const r = roleOf(id); return r ? `<span class="np lk ${r}">${roleName(r)}</span>` : ""; }
 function getBase(id){
   if(id in pbMem) return pbMem[id];
-  let v = null; try{ const r = lsGet(PB_PREFIX + id); if(r) v = JSON.parse(r); }catch(e){}
-  return (pbMem[id] = v && v.p ? v : null);
+  let v = null; try{ const r = lsGet(PB_PREFIX + id); if(r){ const o = JSON.parse(r); if(o && o.p) v = {v:Math.max(0, Math.floor(Number(o.v)) || 0), p:sanitizeProj(o.p)}; } }catch(e){ v = null; }
+  return (pbMem[id] = v);
 }
 const SB_PREFIX = "boothcheck.sb.", sbMem = {};
 function getSB(id){ if(id in sbMem) return sbMem[id]; let v = null; try{ const r = lsGet(SB_PREFIX + id); if(r) v = JSON.parse(r); }catch(e){} return (sbMem[id] = v); }
@@ -3799,10 +3802,11 @@ async function zEnc(obj){
   if(typeof CompressionStream !== "undefined"){ try{ z = await pipe(bytes, CompressionStream, "deflate-raw"); c = 1; }catch(e){ z = bytes; c = 0; } }
   return {z:CL.F.Bytes.fromUint8Array(z), c, size:z.length};
 }
-async function zDec(d){
-  if(!d || !d.z) throw new Error("no data");
+const PUB_MAX = 3 * 1024 * 1024;
+async function zDec(d, max){
+  if(!d || !d.z || typeof d.z.toUint8Array !== "function") throw new Error("no data");
   let bytes = d.z.toUint8Array();
-  if(d.c) bytes = await pipe(bytes, DecompressionStream, "deflate-raw", MAX_INFLATE);
+  if(d.c) bytes = await pipe(bytes, DecompressionStream, "deflate-raw", max || MAX_INFLATE);
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 function clErrText(e){
@@ -3812,6 +3816,7 @@ function clErrText(e){
   if(/resource-exhausted/.test(c)) return "오늘 무료 사용량을 넘었어요. 내일 다시 시도해 주세요";
   if(/unauthenticated/.test(c)) return "다시 로그인해 주세요";
   if(c === "bc/big") return "행사 데이터가 너무 커서 올리지 못했어요";
+  if(c === "bc/bad") return "공유 데이터가 손상돼서 반영하지 못했어요. 만든 사람이 한 번 고치면 다시 돼요";
   return "문제가 생겼어요" + (c ? ` (${c})` : "");
 }
 function clErr(e, quiet){ CL.err = clErrText(e); if(!quiet) toast(CL.err); clRefreshUI(); }
@@ -3866,7 +3871,7 @@ async function clLogout(){
 }
 function clOnUser(u){
   CL.authKnown = true;
-  CL.user = u ? {uid:u.uid, name:u.displayName || (u.email ? u.email.split("@")[0] : ""), email:u.email || "", photo:u.photoURL || ""} : null;
+  CL.user = u ? {uid:u.uid, dname:u.displayName || "", name:u.displayName || (u.email ? u.email.split("@")[0] : ""), email:u.email || "", photo:u.photoURL || ""} : null;
   CL.gen++;
   if(CL.unsubUser){ try{ CL.unsubUser(); }catch(e){} CL.unsubUser = null; }
   CL.err = "";
@@ -3926,7 +3931,8 @@ async function clApplyUserDoc(r){
   if(id === LIB.current && saveT) flush();
   let ent = entOf(id);
   if(ent && (r.upd||0) <= (ent.cu||0)) return;
-  const R = normalize(payload.s), rjs = JSON.stringify(R);
+  let R; try{ R = normalize(payload.s); }catch(e){ return; }
+  const rjs = JSON.stringify(R);
   const dirty = !!ent && (ent.mod||0) > (ent.cu||0);
   let st = R;
   if(dirty){
@@ -3941,7 +3947,7 @@ async function clApplyUserDoc(r){
   Object.assign(ent, evMeta(st), {link: link && link.code ? link : null, cu:r.upd, acct:CL.user.uid});
   ent.mod = dirty && js !== rjs ? Date.now() : r.upd;
   setSB(id, rjs);
-  const lb = getBase(id), rb = payload.b && payload.b.p ? payload.b : null;
+  const lb = getBase(id), rb = (()=>{ try{ return payload.b && payload.b.p ? {v:Math.max(0, Math.floor(Number(payload.b.v)) || 0), p:sanitizeProj(payload.b.p)} : null; }catch(e){ return null; } })();
   if(!ent.link) setBase(id, null);
   else if(!dirty || !lb || (rb && (rb.v||0) > (lb.v||0))) setBase(id, rb);
   saveIndex();
@@ -4001,6 +4007,7 @@ function clDeleted(id){
 }
 
 /* ---- 실시간 공유: pub/{코드} ---- */
+function cleanPubMeta(d){ if(d){ d._hadOwnerName = "ownerName" in d; d.ver = Math.max(0, Math.floor(Number(d.ver)) || 0); d.upd = Number(d.upd) || 0; d.ownerName = String(d.ownerName || "").slice(0, 40); d.name = String(d.name || "").slice(0, 200); } return d; }
 function pubRef(code){ return CL.F.doc(CL.db, "pub", code); }
 function clListenPub(){
   if(CL.unsubPub){ try{ CL.unsubPub(); }catch(e){} CL.unsubPub = null; }
@@ -4020,11 +4027,11 @@ async function clOnPub(id, code, snap){
     toast(l.role === "own" ? "실시간 공유가 꺼졌어요" : "원본 공유가 끝나서 더 이상 업데이트되지 않아요. 지금 내용은 그대로 남아요.");
     return;
   }
-  const d = snap.data();
+  const d = cleanPubMeta(snap.data());
   CL.pubInfo[id] = {ver:d.ver, upd:d.upd, name:d.name, ownerName:d.ownerName || "", owner:d.owner};
   const base0 = getBase(id);
   if(base0 && (d.ver||0) <= (base0.v||0)){ clRefreshUI(); return; }
-  let R; try{ R = sanitizeProj(await zDec(d)); }catch(e){ return; }
+  let R; try{ R = sanitizeProj(await zDec(d, PUB_MAX)); }catch(e){ return; }
   const cur = getBase(id); if(cur && (d.ver||0) <= (cur.v||0)) return;
   const l2 = linkOf(id); if(!l2 || l2.code !== code) return;
   if(l2.role === "sub"){
@@ -4072,13 +4079,16 @@ async function clPushPub(id){
     await CL.F.runTransaction(CL.db, async tx=>{
       const snap = await tx.get(ref);
       if(!snap.exists() || snap.data().closed) throw {code:"bc/gone"};
-      const d = snap.data();
-      const R = (base && d.ver === base.v) ? null : sanitizeProj(await zDec(d));
+      const d = cleanPubMeta(snap.data());
+      let R = null;
+      if(!(base && d.ver === base.v)){ try{ R = sanitizeProj(await zDec(d, PUB_MAX)); }catch(err){ if(l.role !== "own") throw {code:"bc/bad"}; R = null; } }
       const merged = R ? merge3(base ? base.p : null, P, R) : P;
       const enc = await zEnc(merged);
       if(enc.size > 1000000) throw {code:"bc/big"};
       const v = (d.ver||0) + 1;
-      tx.update(ref, {z:enc.z, c:enc.c, ver:v, upd:Date.now(), name:merged.event.name || ""});
+      const upd = {z:enc.z, c:enc.c, ver:v, upd:Date.now(), name:String(merged.event.name || "").slice(0,200)};
+      if(l.role === "own" && d._hadOwnerName) upd.ownerName = CL.F.deleteField();
+      tx.update(ref, upd);
       out = {v, p:merged};
     });
     const prev = getBase(id);
@@ -4116,7 +4126,9 @@ async function clStopRemote(code){
   await CL.F.runTransaction(CL.db, async tx=>{
     const snap = await tx.get(ref);
     if(!snap.exists() || snap.data().closed) return;
-    tx.update(ref, {closed:true, ver:(snap.data().ver||0) + 1, upd:Date.now()});
+    const sd = snap.data(), u = {closed:true, ver:(Math.floor(Number(sd.ver)) || 0) + 1, upd:Date.now(), z:CL.F.Bytes.fromUint8Array(new Uint8Array(0)), c:0, name:""};
+    if("ownerName" in sd) u.ownerName = CL.F.deleteField();
+    tx.update(ref, u);
   });
   try{ const qs = await CL.F.getDocs(CL.F.collection(CL.db, "pub", code, "editors")); const ds = []; qs.forEach(d=>ds.push(CL.F.deleteDoc(d.ref))); await Promise.all(ds); }catch(e){}
   try{ await CL.F.deleteDoc(CL.F.doc(CL.db, "pubkeys", code)); }catch(e){}
@@ -4154,8 +4166,8 @@ async function clFetchPub(code){
   let snap;
   try{ snap = await CL.F.getDoc(pubRef(code)); }catch(e){ clErr(e); return null; }
   if(!snap.exists() || snap.data().closed){ toast("없는 코드이거나 공유가 끝난 행사예요"); return null; }
-  const d = snap.data(); let R;
-  try{ R = sanitizeProj(await zDec(d)); }catch(e){ toast("행사 데이터를 읽지 못했어요"); return null; }
+  const d = cleanPubMeta(snap.data()); let R;
+  try{ R = sanitizeProj(await zDec(d, PUB_MAX)); }catch(e){ toast("행사 데이터를 읽지 못했어요"); return null; }
   return {d, R};
 }
 function newLinkedEvent(R, ver, link){
@@ -4176,7 +4188,7 @@ async function clSubscribe(code){
   if(ex){ if(ex.id !== LIB.current) switchEvent(ex.id); toast(ex.link.role === "sub" ? "이미 구독 중인 행사예요" : "내가 공유 중인 행사예요"); return; }
   const got = await clFetchPub(code); if(!got) return;
   const {d, R} = got;
-  if(!await confirmBox(`‘${R.event.name || "이름 없는 행사"}’${d.ownerName ? ` (${d.ownerName}님)` : ""}\n부스 ${R.booths.length}개\n\n구독하면 원본이 바뀔 때마다 자동으로 업데이트돼요. 구매 리스트·지인·내 메모는 각자 따로예요.`, "구독하기")) return;
+  if(!await confirmBox(`‘${R.event.name || "이름 없는 행사"}’\n부스 ${R.booths.length}개\n\n구독하면 원본이 바뀔 때마다 자동으로 업데이트돼요. 구매 리스트·지인·내 메모는 각자 따로예요.`, "구독하기")) return;
   const id = newLinkedEvent(R, d.ver, {role:"sub", code});
   CL.pubInfo[id] = {ver:d.ver, upd:d.upd, name:d.name, ownerName:d.ownerName || "", owner:d.owner};
   closeSheet(); switchEvent(id); setView("booths"); dropBlank();
@@ -4190,8 +4202,10 @@ async function clJoinEdit(code, key){
   const got = await clFetchPub(code); if(!got) return;
   const {d, R} = got;
   if(d.owner === CL.user.uid){ toast("내가 만든 행사예요"); return; }
-  if(!await confirmBox(`‘${R.event.name || "이름 없는 행사"}’${d.ownerName ? ` (${d.ownerName}님)` : ""}의 공동 편집자로 참여할까요?\n내가 고친 부스·물품 정보가 모두에게 반영돼요.`, "참여하기")) return;
-  try{ await CL.F.setDoc(CL.F.doc(CL.db, "pub", code, "editors", CL.user.uid), {key, name:CL.user.name || "", at:Date.now()}); }
+  let mineN = 0;
+  if(ex){ const bs = new Set(((getBase(ex.id) || {p:{booths:[]}}).p.booths || []).map(b=>b.id)); mineN = loadEvent(ex.id).booths.filter(b=>!bs.has(b.id)).length; }
+  if(!await confirmBox(`‘${R.event.name || "이름 없는 행사"}’의 공동 편집자로 참여할까요?${mineN ? `\n내가 직접 추가한 부스 ${mineN}개도 모두에게 공유돼요.` : ""}\n내가 고친 부스·물품 정보가 모두에게 반영돼요.`, "참여하기")) return;
+  try{ await CL.F.setDoc(CL.F.doc(CL.db, "pub", code, "editors", CL.user.uid), {key, name:String(CL.user.dname || "").slice(0,40), at:Date.now()}); }
   catch(e){ toast(/permission-denied/.test((e && e.code) || "") ? "편집 코드가 맞지 않거나 바뀌었어요" : clErrText(e)); return; }
   let id;
   if(ex){ id = ex.id; setLink(id, {role:"edit", code}); }
@@ -4229,8 +4243,12 @@ async function clEdNewKey(){
 async function clEdRemove(euid){
   const l = linkOf(LIB.current); if(!l || l.role !== "own" || !clNeedLogin()) return;
   const ed = CL.ed[l.code], x = ed && ed.list.find(y=>y.uid===euid);
-  if(!await confirmBox(`‘${(x && x.name) || "이 편집자"}’를 공동 편집에서 뺄까요?\n그 사람은 구독자로 바뀌어요. 편집 코드도 새로 만드는 게 안전해요.`, "빼기", true)) return;
-  try{ await CL.F.deleteDoc(CL.F.doc(CL.db, "pub", l.code, "editors", euid)); if(ed) ed.list = ed.list.filter(y=>y.uid!==euid); clRefreshUI(); toast("뺐어요"); }
+  if(!await confirmBox(`‘${(x && x.name) || "이 편집자"}’를 공동 편집에서 뺄까요?\n그 사람은 구독자로 바뀌고, 편집 코드도 새로 바뀌어요.`, "빼기", true)) return;
+  try{
+    await CL.F.deleteDoc(CL.F.doc(CL.db, "pub", l.code, "editors", euid)); if(ed) ed.list = ed.list.filter(y=>y.uid!==euid);
+    const key = genCode(12); await CL.F.setDoc(CL.F.doc(CL.db, "pubkeys", l.code), {key}); if(ed) ed.key = key;
+    clRefreshUI(); toast("뺐어요. 같은 코드로 다시 들어오지 못하게 편집 코드도 바꿨어요");
+  }
   catch(e){ clErr(e); }
 }
 function liveLink(code, key){ return location.origin + location.pathname + (key ? `#e=${code}-${key}` : `#s=${code}`); }
@@ -4273,14 +4291,14 @@ function clLiveInner(){
     <button class="btn pre block" data-act="clShare">${CL.user ? "실시간 공유 시작" : "로그인하고 시작하기"}</button>
     <p class="desc" style="margin:10px 0 0">받은 코드(BCL-…, BCE-…)는 아래 ‘불러오기’에 붙여 넣으세요.</p>`;
   if(l.role === "sub") return `<h2>구독 중</h2>
-    <p class="desc">${pi.ownerName ? `<b>${esc(pi.ownerName)}</b>님의 행사예요. ` : ""}원본이 바뀌면 자동으로 업데이트돼요. 부스·작가 정보와 태그·부스 메모는 원본에서만 고칠 수 있어요. 무료 배포 물품도 원본을 따라가요. 구매 리스트와 체크·지인·내 메모, 내가 직접 추가한 부스는 내 것이에요.</p>
+    <p class="desc">원본이 바뀌면 자동으로 업데이트돼요. 부스·작가 정보와 태그·부스 메모는 원본에서만 고칠 수 있어요. 무료 배포 물품도 원본을 따라가요. 구매 리스트와 체크·지인·내 메모, 내가 직접 추가한 부스는 내 것이에요.</p>
     ${codeBox("BCL-" + l.code, "구독 코드")}
-    <p class="clst">${when ? `마지막 업데이트 ${when}` : "연결하는 중…"}${base ? ` · 버전 ${base.v}` : ""}</p>
+    <p class="clst">${when ? `마지막 업데이트 ${when}` : "연결하는 중…"}${base ? ` · 버전 ${Number(base.v)||0}` : ""}</p>
     <div class="btnrow"><button class="btn ghost" data-act="clCopy" data-v="code">코드 복사</button><button class="btn ghost" data-act="clCopy" data-v="link">링크 복사</button></div>
     <div class="btnrow" style="margin-top:8px"><button class="btn danger" data-act="clUnsub">구독 끊기 (내 행사로 바꾸기)</button></div>`;
-  const st = !CL.user ? "⚠ 로그인해야 고친 내용이 반영돼요" : busy ? "올리는 중…" : (when ? `반영됨 · ${when}` : "연결하는 중…") + (base ? ` · 버전 ${base.v}` : "");
+  const st = !CL.user ? "⚠ 로그인해야 고친 내용이 반영돼요" : busy ? "올리는 중…" : (when ? `반영됨 · ${when}` : "연결하는 중…") + (base ? ` · 버전 ${Number(base.v)||0}` : "");
   if(l.role === "edit") return `<h2>공동 편집 중</h2>
-    <p class="desc">${pi.ownerName ? `<b>${esc(pi.ownerName)}</b>님의 행사를 같이 고치고 있어요. ` : ""}내가 고친 부스·작가 정보와 무료 배포 물품도 모두에게 반영돼요. 나머지 구매 리스트는 각자 따로예요.</p>
+    <p class="desc">내가 고친 부스·작가 정보와 무료 배포 물품도 모두에게 반영돼요. 나머지 구매 리스트는 각자 따로예요.</p>
     ${codeBox("BCL-" + l.code, "구독 코드")}
     <p class="clst">${esc(st)}</p>
     <div class="btnrow"><button class="btn ghost" data-act="clCopy" data-v="code">구독 코드 복사</button><button class="btn ghost" data-act="clCopy" data-v="link">링크 복사</button></div>

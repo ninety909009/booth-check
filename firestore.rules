@@ -3,6 +3,12 @@ service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function pubOwner(code) { return get(/databases/$(database)/documents/pub/$(code)).data.owner; }
+    function validPub(d) {
+      return d.z is bytes && d.z.size() < 1048000
+        && d.c in [0, 1]
+        && d.name is string && d.name.size() <= 200
+        && d.ver is int && d.upd is int;
+    }
     function isEditor(code) { return signedIn() && exists(/databases/$(database)/documents/pub/$(code)/editors/$(request.auth.uid)); }
 
     // 내 행사 (기기 간 동기화): 본인만 읽고 쓰기
@@ -14,21 +20,30 @@ service cloud.firestore {
     match /pub/{code} {
       allow get: if true;
       allow list: if false;
-      // 만들 때: 만든 사람 = 로그인한 본인, 버전 1부터
+      // 만들 때: 만든 사람 = 로그인한 본인, 버전 1부터, 정해진 필드만
       allow create: if signedIn()
         && code.matches('^[A-Z0-9]{8}$')
         && request.resource.data.owner == request.auth.uid
         && request.resource.data.ver == 1
-        && request.resource.data.keys().hasOnly(['owner', 'ownerName', 'name', 'z', 'c', 'ver', 'upd', 'by']);
-      // 고칠 때: 주인·이름 고정, 버전은 1씩만 증가, 끝난 공유는 다시 못 고침, 끝내기는 만든 사람만
+        && request.resource.data.keys().hasOnly(['owner', 'name', 'z', 'c', 'ver', 'upd'])
+        && validPub(request.resource.data);
+      // 고칠 때: 주인 고정, 버전은 1씩만 증가, 형식 검사, 끝난 공유는 다시 못 고침
+      //  - 만든 사람: 예전 버전이 남긴 ownerName을 지울 수 있고, 공유를 끝낼(closed) 수 있음
+      //  - 공동 편집자: 내용만 고칠 수 있음 (ownerName·by·closed 변경 불가)
       allow update: if signedIn()
         && request.resource.data.owner == resource.data.owner
-        && request.resource.data.get('ownerName', '') == resource.data.get('ownerName', '')
         && request.resource.data.ver == resource.data.ver + 1
         && request.resource.data.keys().hasOnly(['owner', 'ownerName', 'name', 'z', 'c', 'ver', 'upd', 'by', 'closed'])
+        && validPub(request.resource.data)
         && resource.data.get('closed', false) == false
-        && (resource.data.owner == request.auth.uid
-            || (isEditor(code) && request.resource.data.get('closed', false) == false));
+        && (
+          (resource.data.owner == request.auth.uid
+            && (!('ownerName' in request.resource.data) || request.resource.data.ownerName == resource.data.get('ownerName', null)))
+          || (isEditor(code)
+            && request.resource.data.get('closed', false) == false
+            && request.resource.data.get('ownerName', '') == resource.data.get('ownerName', '')
+            && request.resource.data.get('by', '') == resource.data.get('by', ''))
+        );
       // 지우지 않고 closed 표시만 남김 → 끝난 코드를 다른 사람이 다시 차지할 수 없음
       allow delete: if false;
 
@@ -39,6 +54,7 @@ service cloud.firestore {
         allow create, update: if signedIn()
           && request.auth.uid == eid
           && request.resource.data.keys().hasOnly(['key', 'name', 'at'])
+          && request.resource.data.name is string && request.resource.data.name.size() <= 40
           && request.resource.data.key == get(/databases/$(database)/documents/pubkeys/$(code)).data.key;
         allow delete: if signedIn() && (request.auth.uid == eid || pubOwner(code) == request.auth.uid);
       }
