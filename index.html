@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1A1D3A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="부스 체크">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>부스 체크</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -966,6 +973,33 @@ a.anick svg{color:var(--pre)}
   .ckfold{margin-top:8px}
   .card{padding:14px}
 }
+/* 결제 수단 · 대리구매 */
+.ifor{font-size:11px;font-weight:700;border-radius:5px;padding:1px 6px;background:#E8F0FF;color:#2F5BD3}
+.ipay{font-size:11px;font-weight:700;border-radius:5px;padding:1px 6px;background:var(--paper);color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.ipay.cash{background:#E9F7EE;color:#1E7B3A;box-shadow:none}
+.ipay.transfer{background:#EEF2FF;color:#3D4FB8;box-shadow:none}
+.ipay.card{background:#F4EEFF;color:#6A3FC4;box-shadow:none}
+.paybd{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:2px 10px;margin-top:4px;font-size:12px}
+.paybd b{font-size:13px}
+.paysum{flex-basis:100%;font-size:12.5px;color:var(--muted);font-weight:600}
+.paysum b{color:var(--text)}
+.pxtitle{font-size:13px;font-weight:700;color:var(--muted);margin:2px 4px 8px;grid-column:1/-1}
+.card.proxy{padding:12px 12px 6px}
+.pxh{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.pxh > b{font-size:16px;color:#2F5BD3}
+.pxs{font-size:13px;color:var(--muted)}
+.pxs b{color:var(--text)}
+.pxb{display:flex;align-items:center;gap:6px;border-top:1px solid var(--line)}
+.pxb .mini{flex:none;font-size:14px;padding:4px 6px 3px;margin-left:2px}
+.pxb .item{flex:1;min-width:0;border-top:0!important}
+.pxb .item .ifor{display:none}
+.gear.inst{display:none}
+.pwacard .pwast{font-size:13px;font-weight:600;margin:0 0 10px}
+.pwacard .pwast.ok{color:#1E7B3A}
+.pwacard ol{margin:0 0 4px;padding-left:20px;font-size:13.5px;line-height:1.7}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .ifor{background:#22305A;color:#9DB8FF} :root:not([data-theme="light"]) .pxh > b{color:#9DB8FF} }
+:root[data-theme="dark"] .ifor{background:#22305A;color:#9DB8FF}
+:root[data-theme="dark"] .pxh > b{color:#9DB8FF}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -1289,14 +1323,16 @@ function normItem(i){
     want: Math.max(1, i.want != null ? Math.round(num(i.want) || 0) : optQty(i)),
     sample: normLink(i.sample) || "", artist: sid(i.artist), must: !!i.must,
     note: (str(i.note || "") + optNote(i.opts)).trim().slice(0,120),
-    cat: str(i.cat || "").trim().slice(0,20), maybe: (!!i.maybe || (i.want != null && !(num(i.want) > 0))) && !i.must
+    cat: str(i.cat || "").trim().slice(0,20), maybe: (!!i.maybe || (i.want != null && !(num(i.want) > 0))) && !i.must,
+    pay: ["cash", "transfer", "card"].includes(i.pay) ? i.pay : "",
+    forWho: str(i.forWho || "").trim().slice(0,30)
   };
 }
 function subPrice(i, x){ return x.price == null ? i.price : x.price; }
 function mkLine(b, i, x){
   const o = x || i;
   return {b, i, s:x, o, iid:i.id, sid:x ? x.id : "", name: x ? `${i.name} · ${x.name}` : i.name, price: x ? subPrice(i, x) : i.price, qty:o.want,
-    type:i.type, must:i.must, maybe:i.maybe, cat:i.cat, artist:i.artist, sample:i.sample, note: x ? (x.note || "") : i.note,
+    type:i.type, must:i.must, maybe:i.maybe, cat:i.cat, artist:i.artist, sample:i.sample, note: x ? (x.note || "") : i.note, pay:i.pay || "", forWho:i.forWho || "",
     get st(){ return o.st; }, set st(v){ o.st = v; }};
 }
 function linesOf(b){
@@ -1459,6 +1495,28 @@ function ddayOf(d){
   if(diff === 0) return {t:"D-DAY", c:"today"};
   if(diff > 0) return {t:"D-" + diff, c:""};
   return {t:"D+" + (-diff), c:"past"};
+}
+const PAY_LABEL = {cash:"현금", transfer:"계좌이체", card:"카드"};
+const PAY_SHORT = {cash:"현금", transfer:"이체", card:"카드"};
+function payEntry(i){
+  if(i.type === "free") return null;
+  return {icon:"won", label:"결제 수단", hint:PAY_LABEL[i.pay] || "미정", items:()=>[["","미정"],["cash","현금"],["transfer","계좌이체"],["card","카드"]].map(([v,l])=>({label:l, on:(i.pay||"")===v, fn:()=>{ i.pay = v; changed(v ? `결제 수단: ${l}` : "결제 수단을 비웠어요"); }}))};
+}
+function forNames(){
+  const set = new Set(S.people.map(p=>p.nick).filter(Boolean));
+  for(const b of S.booths) for(const i of b.items) if(i.forWho) set.add(i.forWho);
+  return [...set].sort((a,b)=>a.localeCompare(b, "ko"));
+}
+async function editFor(b, i){
+  const names = forNames();
+  const v = await promptBox(`‘${i.name || "이 물품"}’을 누가 부탁했나요?\n비우면 내 물품으로 돌아가요.${names.length ? "\n최근: " + names.slice(0,6).join(", ") : ""}`, "예: 하늘", {value:i.forWho || "", yes:"저장", allowEmpty:true});
+  if(v === null) return;
+  i.forWho = v.trim().slice(0,30); changed(i.forWho ? `대리구매: ${i.forWho}` : "대리구매 표시를 뺐어요");
+}
+function payBreakdown(lines){
+  const m = {cash:0, transfer:0, card:0, "":0};
+  for(const i of lines){ if(i.maybe || i.type === "free" || isPaid(i)) continue; m[i.pay || ""] += amt(i); }
+  return m;
 }
 function totals(){
   let pre=0, preF=0, on=0, onF=0, paid=0, unpaid=0, maybe=0, maybeAmt=0;
@@ -1663,7 +1721,7 @@ function itemRow(b, x, o){
     <button class="ck" data-act="cycle" aria-label="${on ? `${esc(L.name)} 상태 바꾸기, 지금 ${stLabel(L)}` : `${esc(L.name)} 구매 리스트에 담기`}"><span>${ICON_CHECK}${ICON_PAY}</span></button>
     <button class="ibody" data-act="editItem" data-id="${b.id}">
       <div class="iname">${L.must?'<span class="star">★ </span>':""}${esc(L.name || "이름 없는 물품")}</div>
-      <div class="isub">${L.maybe?`<span class="imay">고민중</span>`:""}${an?`<span class="iart">${esc(an)}</span>`:""}${L.cat?`<span class="icat" style="${tagStyle(L.cat)}">${esc(L.cat)}</span>`:""}<span class="ist">${on ? `${typeLabel(L)} · ${o.step ? stLabel(L).split(" · ")[0] : stLabel(L)}` : typeLabel(L)}</span>${L.note?`<span class="inote">${esc(L.note)}</span>`:""}</div>
+      <div class="isub">${L.maybe?`<span class="imay">고민중</span>`:""}${L.forWho?`<span class="ifor">→ ${esc(L.forWho)}</span>`:""}${L.pay && L.type !== "free" ? `<span class="ipay ${L.pay}">${PAY_SHORT[L.pay]}</span>`:""}${an?`<span class="iart">${esc(an)}</span>`:""}${L.cat?`<span class="icat" style="${tagStyle(L.cat)}">${esc(L.cat)}</span>`:""}<span class="ist">${on ? `${typeLabel(L)} · ${o.step ? stLabel(L).split(" · ")[0] : stLabel(L)}` : typeLabel(L)}</span>${L.note?`<span class="inote">${esc(L.note)}</span>`:""}</div>
     </button>
     <div class="iprice">${L.type==="free" ? "무료" : won(on ? amt(L) : L.price)}${on && want > 1 && !o.step ? `<small>${L.type==="free" ? "" : won(L.price) + " "}× ${want}</small>` : ""}${L.sample ? `<a class="smp" href="${esc(L.sample)}" target="_blank" rel="noopener noreferrer">샘플 ↗</a>` : ""}</div>
     ${o.step && on ? stepHTML(want) : ""}
@@ -1750,7 +1808,9 @@ function renderCheckList(){
     </div>`);
   }
   const m = document.getElementById("money");
-  if(m) m.innerHTML = `결제 완료 <b>${won(paid)}</b><br>남은 결제 <b>${won(unpaid)}</b>${maybeAmt ? `<br>고민중 <b>${won(maybeAmt)}</b>` : ""}`;
+  const pb = payBreakdown(S.booths.flatMap(b=>linesOf(b).filter(itemMatch)));
+  const pbt = [["cash","현금"],["transfer","이체"],["card","카드"],["","미정"]].filter(([k])=>pb[k] > 0);
+  if(m) m.innerHTML = `결제 완료 <b>${won(paid)}</b><br>남은 결제 <b>${won(unpaid)}</b>${maybeAmt ? `<br>고민중 <b>${won(maybeAmt)}</b>` : ""}${pbt.length && (pbt.length > 1 || pbt[0][0]) ? `<div class="paybd">${pbt.map(([k,l])=>`<span class="${k||"none"}">${l} <b>${won(pb[k])}</b></span>`).join("")}</div>` : ""}`;
   ckFoldInfo(unpaid);
   if(!blocks.length){
     const anyItems = S.booths.some(b=>b.items.length);
@@ -1913,6 +1973,7 @@ function renderInfo(){
         <label class="btn ghost" style="position:relative">백업 파일 열기<input type="file" id="fileIn" accept=".json,.txt,application/json,text/plain" style="position:absolute;inset:0;opacity:0;cursor:pointer"></label></div>
     </div>`)}
     ${sgroup("이 행사 설정", infoCardSec() + infoCardCat() + infoCardTag())}
+    ${sgroup("앱 설치", pwaCard())}
     ${sgroup("행사 관리", `<div class="card">
       <div class="mgrow"><div><b>행사 목록</b><small>다른 행사로 바꾸거나 새 행사를 만들어요. 맨 위 행사 이름을 눌러도 돼요.</small></div><button class="btn ghost sm" data-act="events">열기</button></div>
       <div class="mgrow"><div><b>이 행사 지우기</b><small>부스·물품·체크 기록이 모두 사라지고 되돌릴 수 없어요.</small></div><button class="btn danger sm" data-act="reset">지우기</button></div>
@@ -2353,7 +2414,7 @@ function makeText(o){
     L.push(`${boothCode(b)} ${b.name || "(이름 없음)"} · ${seatLabel(b)}${o.memo && b.tags.length ? "  " + b.tags.map(t=>"#"+t).join(" ") : ""}`);
     if(o.items) for(const i of linesOf(b)){
       const mark = includeSt ? (isFinal(i) ? "✅ " : (i.type==="pre" && i.st===1 ? "💸 " : "⬜ ")) : "- ";
-      L.push(`  ${mark}${i.must?"★":""}[${typeLabel(i)}]${i.cat?"["+i.cat+"]":""} ${i.name} ${i.type==="free" ? "무료" : won(i.price)}${i.qty>1?" ×"+i.qty:""}${i.note?" ("+i.note+")":""}${i.maybe?" (고민중)":""}${i.sample?" 샘플: "+i.sample:""}`);
+      L.push(`  ${mark}${i.must?"★":""}[${typeLabel(i)}]${i.cat?"["+i.cat+"]":""} ${i.name} ${i.type==="free" ? "무료" : won(i.price)}${i.qty>1?" ×"+i.qty:""}${i.note?" ("+i.note+")":""}${i.forWho?" (→ "+i.forWho+")":""}${i.maybe?" (고민중)":""}${i.sample?" 샘플: "+i.sample:""}`);
     }
     for(const a of b.artists) L.push(`  작가: ${a.nick || "-"}${a.site ? " " + a.site : ""}${a.info ? "  인포: " + a.info : ""}${periodOf(a) ? "  " + kindWord(a) + ": " + periodText(periodOf(a)) + (a.preLink ? " " + a.preLink : "") : ""}${(a.imgs||[]).length ? "  인포 이미지: " + a.imgs.join(" ") : ""}`);
     if(o.people && b.isFriend) L.push("  지인: " + (b.friends.length ? b.friends.join(", ") : "♥"));
@@ -2530,6 +2591,9 @@ function renderBoothItems(){
   const anyImg = b.artists.some(a=>(a.imgs||[]).length);
   box.innerHTML = html || `<div class="empty">살 물품을 아래에서 추가하거나<br>${anyImg ? "인포 이미지를 보면서 적어 보세요." : "‘윗치폼’으로 한꺼번에 넣어 보세요."}</div>`;
   document.getElementById("bSums").innerHTML = `<div class="p">선입금 ${st.pre}개<b>${won(st.preAmt)}</b></div><div class="o">현장 ${st.on}개<b>${won(st.onAmt)}</b></div>${st.maybe ? `<div class="mb2">고민중 ${st.maybe}개 (합계에서 빠져 있어요)<b>${won(st.maybeAmt)}</b></div>` : ""}`;
+  const bpb = payBreakdown(linesOf(b));
+  const bpt = [["cash","현금"],["transfer","이체"],["card","카드"]].filter(([k])=>bpb[k] > 0);
+  if(bpt.length) document.getElementById("bSums").insertAdjacentHTML("beforeend", `<div class="paysum">남은 결제 ${bpt.map(([k,l])=>`${l} <b>${won(bpb[k])}</b>`).join(" · ")}${bpb[""] ? ` · 미정 <b>${won(bpb[""])}</b>` : ""}</div>`);
   document.getElementById("bCount").textContent = boothCountText(b);
 }
 
@@ -2718,6 +2782,9 @@ function renderItemForm(){
         </div></div>
       <div class="field"><span>우선순위</span>
         <div class="pick" id="iPri"><button data-pri="norm" aria-pressed="${!d.must && !d.maybe}">보통</button><button class="mustb" data-pri="must" aria-pressed="${!!d.must}">★ 꼭 사기</button><button class="may" data-pri="maybe" aria-pressed="${!!d.maybe}">고민중</button></div></div>
+      ${d.type !== "free" ? `<div class="field"><span>결제 수단</span>
+        <div class="pick" id="iPay">${[["","미정"],["cash","현금"],["transfer","계좌이체"],["card","카드"]].map(([v,l])=>`<button type="button" data-pay="${v}" aria-pressed="${(d.pay||"")===v}">${l}</button>`).join("")}</div></div>` : ""}
+      <label class="field"><span>대리구매 (부탁한 사람)</span><input class="inp" id="iFor" value="${esc(d.forWho||"")}" placeholder="비우면 내 물품" list="forList" autocomplete="off"><datalist id="forList">${forNames().map(n=>`<option value="${esc(n)}">`).join("")}</datalist></label>
       <label class="field"><span>샘플 링크</span><input class="inp" id="iSample" value="${esc(d.sample||"")}" placeholder="https://… (샘플 이미지·글)" autocapitalize="off" spellcheck="false"></label>
       <label class="field"><span>메모</span><input class="inp" id="iNote" value="${esc(d.note)}" placeholder="수량 제한, 특전 등"></label>
       <div class="btnrow" style="margin-top:6px">
@@ -2731,7 +2798,13 @@ function renderItemForm(){
     if(val("iPrice") !== null) d.price = parsePrice(val("iPrice"));
     d.want = Math.max(1, parseInt(val("iWant"),10) || 1);
     d.note = val("iNote"); d.sample = val("iSample");
+    if(val("iFor") !== null) d.forWho = val("iFor");
   };
+  const iPay = document.getElementById("iPay");
+  if(iPay) iPay.addEventListener("click", e=>{
+    const t = e.target.closest("button"); if(!t) return;
+    d.pay = t.dataset.pay; iPay.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed", String(x===t)));
+  });
   bindCatSelect(document.getElementById("iCat"), ()=>d.cat||"", v=>{ d.cat = v; });
   const iArt = document.getElementById("iArt"); if(iArt) iArt.addEventListener("change", ()=>{ d.artist = iArt.value; });
   document.getElementById("iType").addEventListener("click", e=>{
@@ -2811,6 +2884,8 @@ function itemMenu(b, i, el){
     {icon:"memo", label:"메모", hint:i.note ? "있음" : "", fn:()=>editNote(b, i, null)},
     i.sample ? {icon:"link", label:"샘플 열기", fn:()=>window.open(i.sample, "_blank", "noopener")} : null,
     flagChips(i),
+    payEntry(i),
+    {icon:"user", label:"대리구매", hint:i.forWho || "", fn:()=>editFor(b, i)},
     typeEntry(i),
     artistEntry(b, i),
     {icon:"edit", label:"물품 수정", fn:()=>openSheet({kind:"item", id:b.id, iid:i.id})},
@@ -2855,6 +2930,8 @@ function boothMenu(b, onMap){
     (onMap && view === "map") ? null : {icon:"pin", label: hl ? "배치도에서 보기" : "배치도에 놓기", hint: hl ? hl.name : "", fn:()=> hl ? goMap(b) : placeMap(b)},
     onMap && mapEdit && !b.half ? {icon:"rotate", label:"회전", fn:()=>{ b.pos.rot = b.pos.rot ? 0 : 1; save(); renderMapItems(); }} : null,
     onMap && mapEdit ? {icon:"out", label:"배치도에서 빼기", fn:()=>{ b.pos = null; mapSel = null; save(); renderMapItems(); renderMapBottom(); }} : null,
+    b.items.some(i=>i.type !== "free") ? {icon:"won", label:"결제 수단 한꺼번에", hint:(()=>{ const ps = [...new Set(b.items.filter(i=>i.type!=="free").map(i=>i.pay||""))]; return ps.length === 1 ? (PAY_LABEL[ps[0]] || "미정") : "섞여 있음"; })(),
+      items:()=>[["","미정"],["cash","현금"],["transfer","계좌이체"],["card","카드"]].map(([v,l])=>({label:l, fn:()=>{ for(const i of b.items) if(i.type !== "free") i.pay = v; changed(`${boothCode(b)} 물품 결제 수단: ${l}`); }}))} : null,
     {chips:[{label:"♥ 지인 부스", cls:"fr", on:()=>b.isFriend, fn:()=>{ b.isFriend = !b.isFriend; if(!b.isFriend) b.friends = []; changed(b.isFriend ? "지인 부스로 표시했어요" : "지인 표시를 뺐어요"); }}]},
     {sep:1},
     {icon:"trash", label:"부스 삭제", danger:1, fn:async ()=>{
@@ -3215,7 +3292,16 @@ function renderPeople(){
   const known = new Set(ppl.map(p=>p.nick));
   const sug = [];
   for(const b of sortedBooths()) if(b.isFriend) for(const f of b.friends) if(!known.has(f) && !sug.some(x=>x.nick===f)) sug.push({nick:f, b});
+  const proxy = new Map();
+  for(const b of sortedBooths()) for(const L of linesOf(b)) if(L.forWho){ if(!proxy.has(L.forWho)) proxy.set(L.forWho, []); proxy.get(L.forWho).push({b, L}); }
+  const proxyHTML = proxy.size ? [...proxy.entries()].sort((a,b)=>a[0].localeCompare(b[0], "ko")).map(([nm, list])=>{
+    const sum = list.reduce((n,{L})=>n + (L.maybe ? 0 : amt(L)), 0), paid = list.reduce((n,{L})=>n + (!L.maybe && isPaid(L) ? amt(L) : 0), 0);
+    const fin = list.filter(({L})=>!L.maybe && isFinal(L)).length, all = list.filter(({L})=>!L.maybe).length;
+    return `<div class="card proxy"><div class="pxh"><b>→ ${esc(nm)}</b><span class="pxs">${fin}/${all} 챙김 · 받을 돈 <b>${won(sum)}</b>${paid && paid < sum ? ` <small>(낸 돈 ${won(paid)})</small>` : ""}</span></div>
+      ${list.map(({b, L})=>`<div class="pxb"><button class="mini" style="--sc:${secColor(b.section)};border:0" data-act="open" data-id="${b.id}">${esc(boothCode(b))}</button>${itemRow(b, L, {art:false})}</div>`).join("")}</div>`;
+  }).join("") : "";
   main.innerHTML = `<div class="pad pplgrid">
+    ${proxy.size ? `<h3 class="pxtitle mfull">대리구매</h3>${proxyHTML}<h3 class="pxtitle mfull">지인</h3>` : ""}
     <div class="pplhead"><div class="pplsum">지인 <b>${ppl.length}</b>명  |  만남 <b>${metN}/${ppl.length}</b>  |  챙길 것 <b>${gD}/${gT}</b></div><button class="btn pre sm" data-act="padd">+ 지인 추가</button></div>
     ${sug.length ? `<div class="card pplhead" style="display:block"><h2>부스에 적어 둔 지인</h2><p class="desc">누르면 지인 목록에 추가되고 그 부스와 연결돼요.</p><div class="tagsug" style="margin:0">${sug.map(x=>`<button class="tg" style="--tc:#5C4300;--tb:#FFE98A" data-act="psug" data-nick="${esc(x.nick)}" data-bid="${x.b.id}">♥ ${esc(x.nick)} · ${esc(boothCode(x.b))}</button>`).join("")}</div></div>` : ""}
     ${ppl.length ? ppl.map(personCard).join("") : `<div class="empty"><strong>아직 지인이 없어요</strong>‘+ 지인 추가’로 만날 사람과 챙길 선물을 적어 보세요.</div>`}
@@ -3584,7 +3670,9 @@ function cycle(bid, iid, sid, btn){
   renderTop();
   if(sh && sh.kind==="booth"){
     const c = document.getElementById("bCount"); if(c) c.textContent = boothCountText(b);
+    setTimeout(()=>{ if(sh && sh.kind==="booth" && sh.id===b.id) renderBoothItems(); }, 170);
   }
+  if(view === "people" && !sh) setTimeout(()=>{ if(view === "people" && !sh) renderPeople(); }, 170);
   if(view === "check" && !sh){
     const grp = row && row.closest(".cgroup");
     if(grp){ const all = grp.querySelectorAll(".item:not(.maybe)").length, fin = grp.querySelectorAll(".item.fin:not(.maybe)").length; const c = grp.querySelector(".cnt"); if(c) c.textContent = `${fin}/${all}`; }
@@ -4606,7 +4694,7 @@ document.addEventListener("click", async e=>{
       if(smp === null){ toast("샘플 링크를 https://로 시작하게 적어 주세요"); return; }
       const price = d.type==="free" ? 0 : d.price, cap = d.type==="pre" ? 2 : 1, want = Math.max(1, +d.want || 1);
       Object.assign(it, {name:d.name.trim(), price, want, type:d.type, st: want ? Math.min(cap, it.st) : 0, must:!!d.must, maybe:!!d.maybe, note:(d.note||"").trim(), cat:d.cat||"",
-        sample:smp, artist: soleArtist(b) || d.artist || ""});
+        sample:smp, artist: soleArtist(b) || d.artist || "", pay: d.type === "free" ? "" : (["cash","transfer","card"].includes(d.pay) ? d.pay : ""), forWho:String(d.forWho||"").trim().slice(0,30)});
       save(); renderTop(); sh = {kind:"booth", id:b.id}; renderSheet(); toast("저장했어요");
       break;
     }
@@ -4821,6 +4909,39 @@ fab.addEventListener("click", ()=>{
     if(want !== mini){ mini = want; document.getElementById("top").classList.toggle("mini", mini); }
   }, {passive:true});
 })();
+/* ---------- 오프라인 설치 (PWA) ---------- */
+const PWA = {prompt:null, sw:false, ok:false};
+function isStandalone(){ return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true; }
+function isIOS(){ return /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+function pwaCard(){
+  if(IN_CLAUDE || location.protocol === "file:") return "";
+  const st = isStandalone() ? `<p class="pwast ok">✓ 홈 화면 앱으로 실행 중이에요.</p>` : "";
+  const off = PWA.ok ? `<p class="pwast ok">✓ 인터넷이 끊겨도 이 기기에 저장된 내용으로 열려요.</p>` : (PWA.sw ? `<p class="pwast">오프라인 준비 중… 잠시 뒤 다시 확인해 주세요.</p>` : "");
+  let how = "";
+  if(!isStandalone()){
+    if(PWA.prompt) how = `<button class="btn pre block" data-act="pwaInstall">홈 화면에 설치</button>`;
+    else if(isIOS()) how = `<ol><li>사파리 아래쪽 <b>공유</b> 버튼(네모에 화살표)을 눌러요.</li><li><b>홈 화면에 추가</b>를 골라요.</li><li>홈 화면의 ‘부스 체크’ 아이콘으로 열면 앱처럼 써요.</li></ol>`;
+    else how = `<ol><li>브라우저 메뉴(⋮)를 열어요.</li><li><b>앱 설치</b> 또는 <b>홈 화면에 추가</b>를 눌러요.</li></ol>`;
+  }
+  return `<div class="card pwacard" id="pwaCard"><h2>홈 화면에 설치</h2><p class="desc">앱처럼 아이콘으로 열고, 행사장에서 인터넷이 잘 안 터져도 그대로 쓸 수 있어요. 로그인 동기화와 실시간 공유는 인터넷이 다시 연결되면 이어서 돼요.</p>${st}${off}${how}</div>`;
+}
+function pwaRefresh(){ const c = document.getElementById("pwaCard"); if(c && view === "info") c.outerHTML = pwaCard(); }
+window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); PWA.prompt = e; pwaRefresh(); });
+window.addEventListener("appinstalled", ()=>{ PWA.prompt = null; toast("홈 화면에 설치했어요"); pwaRefresh(); });
+window.addEventListener("offline", ()=>toast("인터넷이 끊겼어요. 이 기기에 저장된 내용으로 계속 쓸 수 있어요"));
+window.addEventListener("online", ()=>toast("다시 연결됐어요"));
+document.addEventListener("click", async e=>{
+  if(!e.target.closest('[data-act="pwaInstall"]') || !PWA.prompt) return;
+  const pr = PWA.prompt; PWA.prompt = null;
+  try{ await pr.prompt(); await pr.userChoice; }catch(err){}
+  pwaRefresh();
+});
+if("serviceWorker" in navigator && !IN_CLAUDE && (location.protocol === "https:" || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))){
+  PWA.sw = true;
+  window.addEventListener("load", ()=>{
+    navigator.serviceWorker.register("sw.js").then(()=>navigator.serviceWorker.ready).then(()=>{ PWA.ok = true; pwaRefresh(); }).catch(()=>{ PWA.sw = false; pwaRefresh(); });
+  });
+}
 /* boot */
 renderTop();
 setView("booths");

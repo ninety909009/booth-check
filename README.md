@@ -9,11 +9,20 @@
 ## 레포에 올릴 파일
 
 ```
-index.html          앱 본체
-firebase-config.js  Firebase 설정값 (직접 채움, 앱을 업데이트해도 이 파일은 그대로 두기)
-firestore.rules     Firestore 보안 규칙 (Firebase 콘솔에 붙여 넣는 용도)
-CNAME               커스텀 도메인을 쓸 때만
+index.html              앱 본체
+firebase-config.js      Firebase 설정값 (직접 채움, 앱을 업데이트해도 이 파일은 그대로 두기)
+firestore.rules         Firestore 보안 규칙 (Firebase 콘솔에 붙여 넣는 용도)
+sw.js                   오프라인용 (인터넷이 끊겨도 앱이 열리게 해 줌)
+manifest.webmanifest    홈 화면 설치 정보
+icon-192.png, icon-512.png, icon-maskable-512.png, apple-touch-icon.png   앱 아이콘
+CNAME                   커스텀 도메인을 쓸 때만
 ```
+
+## 홈 화면 설치 · 오프라인
+
+- 안드로이드 크롬: 설정(톱니바퀴) → ‘앱 설치’ 카드의 **홈 화면에 설치** 버튼, 또는 브라우저 메뉴 → 앱 설치.
+- 아이폰 사파리: 공유 버튼 → **홈 화면에 추가**.
+- 한 번 열어 두면 그 뒤로는 인터넷이 끊겨도 앱이 열려요. 새 버전은 인터넷이 될 때 열면 자동으로 받아요.
 
 ## Firebase 설정 (처음 한 번)
 
