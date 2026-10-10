@@ -398,11 +398,18 @@ select.inp{appearance:none;-webkit-appearance:none;padding-right:30px;background
 .trow.pick .tl{color:var(--pre);font-weight:700}
 .timerow{display:flex;gap:8px;align-items:center;margin-bottom:8px}
 .timerow .inp:not(.stime){flex:1;min-width:0}
+.trng .stime{width:68px!important;padding:0 4px!important}
+.trng .tname{flex:1;min-width:0;font-weight:700;font-size:14px}
+.trng .tsep{font-style:normal;color:var(--muted);flex:none;margin:0 -2px}
+.fhint{margin:-2px 0 10px;font-size:12px;color:var(--muted)}
+#fHours{padding-bottom:4px;margin-bottom:8px;border-bottom:1px dashed var(--line)}
+.trow.open .tl{color:var(--on);font-weight:700}
+.erow .et small{display:block;font-size:12px;font-weight:600;color:var(--muted);line-height:1.1}
 .alertline{display:flex;align-items:center;gap:8px;margin-top:8px;background:#FFE14D;color:#1A1D3A;border:0;border-radius:10px;padding:7px 10px;font-size:13px;font-weight:700;width:100%;text-align:left}
 .alertline.late{background:var(--on);color:#fff}
 .alertline span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mdl{position:absolute;left:2px;bottom:0;font-style:normal;font-size:10px}
-.w-time{width:96px;min-width:96px}
+.w-time{width:118px;min-width:118px}
 .row2{flex-wrap:wrap}
 .toggles{display:flex;flex-direction:column;gap:2px}
 .mapview:not(.editing) .mapcanvas{background-image:none;box-shadow:0 0 0 1px var(--line)}
@@ -1093,11 +1100,14 @@ function normalize(d){
       pmemo: str(b.pmemo || "").slice(0,2000),
       _link: normLink(b.link) || "",
       pickup: normTime(b.pickup) || "",
+      pickupFrom: normTime(b.pickupFrom) || "",
+      openFrom: normTime(b.openFrom) || "",
+      openTo: normTime(b.openTo) || "",
       artists: Array.isArray(b.artists) ? b.artists.slice(0,30).filter(a=>a&&typeof a==="object").map(a=>({id:sid(a.id)||uid(), nick:str(a.nick||"").trim().slice(0,30), site:normSite(a.site)||"", info:normLink(a.info)||"", memo:str(a.memo||"").slice(0,200), preFrom:validDate(a.preFrom), preTo:validDate(a.preTo), preToTime:normTime(a.preToTime)||"", preLink:normLink(a.preLink)||"", preKind:a.preKind==="survey" ? "survey" : "", hidden:!!a.hidden, imgs:Array.isArray(a.imgs) ? [...new Set(a.imgs.map(u=>normLink(u)).filter(Boolean))].slice(0,12) : []})).filter(a=>a.imgs.length||a.nick||a.site||a.info||a.memo||a.preFrom||a.preTo||a.preLink) : [],
       friends: Array.isArray(b.friends) ? [...new Set(b.friends.map(f=>str(f||"").trim().slice(0,30)).filter(Boolean))] : (str(b.friend||"").trim() ? [str(b.friend).trim().slice(0,30)] : []),
       isFriend: !!b.isFriend || !!str(b.friend||"").trim() || (Array.isArray(b.friends) && b.friends.some(f=>str(f||"").trim())),
       _bp: {preFrom: validDate(b.preFrom), preTo: validDate(b.preTo), preToTime: normTime(b.preToTime) || ""},
-      times: Array.isArray(b.times) ? b.times.slice(0,30).filter(x=>x&&typeof x==="object").map(x=>({label:str(x.label||"").trim().slice(0,60), time:normTime(x.time)||""})).filter(x=>x.label||x.time) : [],
+      times: Array.isArray(b.times) ? b.times.slice(0,30).filter(x=>x&&typeof x==="object").map(x=>({label:str(x.label||"").trim().slice(0,60), time:normTime(x.time)||"", end:normTime(x.end)||""})).filter(x=>x.label||x.time||x.end) : [],
       pos: normPos(b.pos),
       items: Array.isArray(b.items) ? b.items.slice(0,500).filter(i=>i&&typeof i==="object").flatMap(flattenSubs).slice(0,500).map(normItem) : []
     }));
@@ -1554,12 +1564,36 @@ function schNow(){
 function nowMin(){ const n = new Date(); return n.getHours()*60 + n.getMinutes(); }
 function hmMin(t){ const [h,m] = t.split(":").map(Number); return h*60 + m; }
 function fmtLeft(m){ return m >= 60 ? `${Math.floor(m/60)}시간${m%60 ? " " + m%60 + "분" : ""}` : `${m}분`; }
+function rangeText(a, b){ return a && b ? `${a}~${b}` : a ? `${a}~` : b ? `~${b}` : ""; }
+function normRange(v){
+  v = str(v||"").trim(); if(!v) return {from:"", to:""};
+  const m = v.split(/\s*[~〜∼–—-]\s*/);
+  if(m.length === 1){ const t = normTime(v); return t === null ? null : {from:"", to:t}; }
+  if(m.length !== 2) return null;
+  const a = m[0] ? normTime(m[0]) : "", b = m[1] ? normTime(m[1]) : "";
+  return a === null || b === null ? null : {from:a, to:b};
+}
+/* 시작~끝 구간의 지금 상태. 오늘이 아니면 null */
+function spanState(from, to){
+  if(!isEventToday() || (!from && !to)) return null;
+  const nm = nowMin(), f = from ? hmMin(from) : null, t = to ? hmMin(to) : null;
+  if(f != null && nm < f) return {phase:"before", left:f - nm};
+  if(t != null && nm > t) return {phase:"after"};
+  return {phase:"during", left: t != null ? t - nm : null};
+}
 function pickupState(b){
-  if(!b.pickup) return null;
+  if(!b.pickup && !b.pickupFrom) return null;
   const ls = linesOf(b), hasPre = ls.some(i=>i.type==="pre" && !i.maybe), pend = ls.some(i=>i.type==="pre" && !i.maybe && i.st<2);
   if(hasPre && !pend) return {cls:"ok", text:"선입금 수령 완료", pend:false};
-  if(!isEventToday()) return {cls:"", text:`수령 마감 ${b.pickup}`, pend};
-  const left = hmMin(b.pickup) - nowMin();
+  const rt = rangeText(b.pickupFrom, b.pickup);
+  if(!isEventToday()) return {cls:"", text: b.pickupFrom ? `수령 ${rt}` : `수령 마감 ${b.pickup}`, pend};
+  const nm = nowMin();
+  if(b.pickupFrom && nm < hmMin(b.pickupFrom)){
+    const w = hmMin(b.pickupFrom) - nm;
+    return {cls:"", text:`수령 ${rt} · ${fmtLeft(w)} 후 시작`, left: b.pickup ? hmMin(b.pickup) - nm : null, wait:w, pend};
+  }
+  if(!b.pickup) return {cls:"", text:`수령 ${b.pickupFrom}부터 · 지금 가능`, pend};
+  const left = hmMin(b.pickup) - nm;
   if(left < 0) return {cls:"late", text:`수령 마감 지남 (${b.pickup})`, left, pend};
   if(left <= 60) return {cls:"soon", text:`수령 마감 ${fmtLeft(left)} 전`, left, pend};
   return {cls:"", text:`수령 마감 ${b.pickup} · ${fmtLeft(left)} 남음`, left, pend};
@@ -1764,7 +1798,7 @@ function renderCheck(){
       <div id="ckOpts" ${UIP.ckBar ? "" : "hidden"}>
       <div class="row2">
         <div class="toggles"><button class="toggle" data-act="remain" aria-pressed="${ckRemain}"><span class="sw"></span>남은 것만</button>
-        <button class="toggle" data-act="dlsort" aria-pressed="${ckDl}"><span class="sw"></span>수령 마감 빠른 순</button>
+        <button class="toggle" data-act="dlsort" aria-pressed="${ckDl}"><span class="sw"></span>수령 시간 빠른 순</button>
         <button class="toggle" data-act="nomaybe" aria-pressed="${ckNoMaybe}"><span class="sw"></span>고민중 숨기기</button></div>
         <div class="money" id="money"></div>
       </div>
@@ -1791,7 +1825,7 @@ function renderCheckList(){
   let paid=0, unpaid=0, maybeAmt=0;
   const blocks = [];
   let order = sortedBooths();
-  if(ckDl) order = order.map((b,k)=>({b,k})).sort((a,c)=>{ const x = a.b.pickup ? hmMin(a.b.pickup) : 9999, y = c.b.pickup ? hmMin(c.b.pickup) : 9999; return x - y || a.k - c.k; }).map(x=>x.b);
+  if(ckDl) order = order.map((b,k)=>({b,k})).sort((a,c)=>{ const pk = b=>b.pickup ? hmMin(b.pickup) : b.pickupFrom ? hmMin(b.pickupFrom) : 9999, x = pk(a.b), y = pk(c.b); return x - y || a.k - c.k; }).map(x=>x.b);
   for(const b of order){
     let items = linesOf(b).filter(itemMatch);
     for(const i of items){ if(i.maybe){ maybeAmt += amt(i); continue; } if(isPaid(i)) paid += amt(i); else unpaid += amt(i); }
@@ -2418,8 +2452,9 @@ function makeText(o){
     }
     for(const a of b.artists) L.push(`  작가: ${a.nick || "-"}${a.site ? " " + a.site : ""}${a.info ? "  인포: " + a.info : ""}${periodOf(a) ? "  " + kindWord(a) + ": " + periodText(periodOf(a)) + (a.preLink ? " " + a.preLink : "") : ""}${(a.imgs||[]).length ? "  인포 이미지: " + a.imgs.join(" ") : ""}`);
     if(o.people && b.isFriend) L.push("  지인: " + (b.friends.length ? b.friends.join(", ") : "♥"));
-    if(b.pickup) L.push("  선입금 수령 마감: " + b.pickup);
-    if(b.times.length) L.push("  시간: " + b.times.slice().sort((x,y)=>(x.time||"99").localeCompare(y.time||"99")).map(x=>`${x.time||"--:--"} ${x.label}`).join(", "));
+    if(b.openFrom || b.openTo) L.push("  부스 운영: " + rangeText(b.openFrom, b.openTo));
+    if(b.pickupFrom) L.push("  선입금 수령: " + rangeText(b.pickupFrom, b.pickup)); else if(b.pickup) L.push("  선입금 수령 마감: " + b.pickup);
+    if(b.times.length) L.push("  시간: " + b.times.slice().sort((x,y)=>(x.time||x.end||"99").localeCompare(y.time||y.end||"99")).map(x=>`${rangeText(x.time, x.end)||"--:--"} ${x.label}`).join(", "));
     if(o.memo && b.memo.trim()) L.push("  메모: " + b.memo.trim().replace(/\n/g," / "));
   }
   return L.join("\n").trim();
@@ -2491,14 +2526,23 @@ function renderBoothSheet(){
           const imgs = a.imgs || [];
           return `<div class="arow">${nick}${a.info ? `<a class="ainfo" href="${esc(a.info)}" target="_blank" rel="noopener noreferrer">인포 ↗</a>` : ""}${imgs.length ? `<button type="button" class="ainfo awrite" data-act="infoWrite" data-bid="${b.id}" data-aid="${a.id}">✎ 보며 적기</button>` : ""}</div>${imgs.length ? `<div class="aimgs ${imgs.length===1?"one":""}">${imgThumbs(imgs, "aimg", b.id, a.id)}</div>` : ""}`; }).join("")}</div>` : ""}
       <div class="binfo">
-        ${(()=>{ const ps = pickupState(b), others = b.times.filter(x=>x.time||x.label).slice().sort((x,y)=>(x.time||"99").localeCompare(y.time||"99"));
-          const pers = boothPeriods(b);
-          if(!b.pickup && !others.length && !pers.length) return "";
-          const today = isEventToday(), nm = nowMin();
+        ${(()=>{ const ps = pickupState(b), others = b.times.filter(x=>x.time||x.end||x.label).slice().sort((x,y)=>(x.time||x.end||"99").localeCompare(y.time||y.end||"99"));
+          const pers = boothPeriods(b), hasOpen = b.openFrom || b.openTo, hasPick = b.pickup || b.pickupFrom;
+          if(!hasPick && !hasOpen && !others.length && !pers.length) return "";
+          const chip = (from, to)=>{ const z = spanState(from, to); if(!z) return "";
+            if(z.phase === "before") return `<span class="dl">${fmtLeft(z.left)} 후</span>`;
+            if(z.phase === "after") return `<span class="dl ok">${from && to ? "끝남" : "지남"}</span>`;
+            if(!from) return `<span class="dl ${z.left<=30?"soon":""}">${fmtLeft(z.left)} 남음</span>`;
+            return `<span class="dl soon">진행 중${z.left!=null && z.left <= 60 ? " · " + fmtLeft(z.left) + " 남음" : ""}</span>`; };
+          const pickChip = ()=>{ if(!ps) return ""; if(ps.cls==="ok") return `<span class="dl ok">수령 완료</span>`;
+            if(ps.wait != null) return `<span class="dl">${fmtLeft(ps.wait)} 후</span>`;
+            if(ps.cls==="late") return `<span class="dl late">지남</span>`;
+            if(ps.left == null) return isEventToday() ? `<span class="dl soon">수령 가능</span>` : "";
+            return ps.cls==="soon" ? `<span class="dl soon">${fmtLeft(ps.left)} 전</span>` : `<span class="dl">${b.pickupFrom ? "수령 가능 · " : ""}${fmtLeft(ps.left)} 남음</span>`; };
           return `<div class="timebox">${pers.map(x=>`<div class="trow pick${x.p.kind === "survey" ? " survey" : ""}"><span class="tl">${kindWord(x.p)}${x.label ? " · " + esc(x.label) : ""}</span><b style="font-size:14px">${esc(periodText(x.p))}</b><span class="dl ${x.ps.cls}">${esc(stripKind(x.ps.text))}</span>${x.p.link ? `<a class="plink" href="${esc(x.p.link)}" target="_blank" rel="noopener noreferrer">폼 ↗</a>` : ""}</div>`).join("")}
-            ${b.pickup ? `<div class="trow pick"><span class="tl">선입금 수령 마감</span><b>${b.pickup}</b>${ps && ps.cls ? `<span class="dl ${ps.cls}">${ps.cls==="ok" ? "수령 완료" : ps.cls==="late" ? "지남" : fmtLeft(ps.left) + " 전"}</span>` : (ps && ps.left!=null ? `<span class="dl">${fmtLeft(ps.left)} 남음</span>` : "")}</div>` : ""}
-            ${others.map(x=>{ const l = today && x.time ? hmMin(x.time) - nm : null;
-              return `<div class="trow"><span class="tl">${esc(x.label || "시간")}</span><b>${x.time || "--:--"}</b>${l!=null ? `<span class="dl ${l<0?"ok":l<=30?"soon":""}">${l<0?"지남":fmtLeft(l)+" 남음"}</span>` : ""}</div>`; }).join("")}</div>`; })()}
+            ${hasOpen ? `<div class="trow open"><span class="tl">부스 운영</span><b>${rangeText(b.openFrom, b.openTo)}</b>${chip(b.openFrom, b.openTo)}</div>` : ""}
+            ${hasPick ? `<div class="trow pick"><span class="tl">${b.pickupFrom ? "선입금 수령" : "선입금 수령 마감"}</span><b>${b.pickupFrom ? rangeText(b.pickupFrom, b.pickup) : b.pickup}</b>${pickChip()}</div>` : ""}
+            ${others.map(x=>`<div class="trow"><span class="tl">${esc(x.label || "시간")}</span><b>${rangeText(x.time, x.end) || "--:--"}</b>${x.end ? chip(x.time, x.end) : chip("", x.time)}</div>`).join("")}</div>`; })()}
       </div>
       <div class="sums" id="bSums"></div>
       <div class="addhead"><h4>구매 리스트</h4><span id="bCount" class="hc"></span><button class="btn ghost sm" data-act="wfOpen">윗치폼</button><button class="btn ghost sm" data-act="toggleAdd" id="addTog">${UIP.addOpen ? "접기" : "+ 추가"}</button></div>
@@ -2600,9 +2644,9 @@ function renderBoothItems(){
 
 function renderBoothForm(){
   const isNew = !sh.id;
-  const b = isNew ? {section: secFilter!=="all" ? secFilter : (S.sections[0]||""), num:"", half:0, span:1, name:"", artists:[], pickup:"", times:[], isFriend:false, friends:[], preFrom:"", preTo:"", preToTime:"", memo:"", tags: tagFilter ? [tagFilter] : []} : findBooth(sh.id);
+  const b = isNew ? {section: secFilter!=="all" ? secFilter : (S.sections[0]||""), num:"", half:0, span:1, name:"", artists:[], pickup:"", pickupFrom:"", openFrom:"", openTo:"", times:[], isFriend:false, friends:[], preFrom:"", preTo:"", preToTime:"", memo:"", tags: tagFilter ? [tagFilter] : []} : findBooth(sh.id);
   if(!b){ closeSheet(); return; }
-  const draft = sh.draft || (sh.draft = {section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, artists:(b.artists||[]).map(a=>({...a, imgs:[...(a.imgs||[])]})), pickup:b.pickup||"", times:(b.times||[]).map(x=>({...x})), isFriend:!!b.isFriend, friendsText:(b.friends||[]).join(", "), preFrom:b.preFrom||"", preTo:b.preTo||"", preToTime:b.preToTime||"", memo:b.memo, tags:[...(b.tags||[])]});
+  const draft = sh.draft || (sh.draft = {section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, artists:(b.artists||[]).map(a=>({...a, imgs:[...(a.imgs||[])]})), pickup:b.pickup||"", pickupFrom:b.pickupFrom||"", openFrom:b.openFrom||"", openTo:b.openTo||"", times:(b.times||[]).map(x=>({end:"", ...x})), isFriend:!!b.isFriend, friendsText:(b.friends||[]).join(", "), preFrom:b.preFrom||"", preTo:b.preTo||"", preToTime:b.preToTime||"", memo:b.memo, tags:[...(b.tags||[])]});
   sheet.innerHTML = `
     <div class="sh-grab" id="grab"><div class="handle"></div>
       <div class="sh-head sh-plain">
@@ -2625,7 +2669,11 @@ function renderBoothForm(){
       <div class="field"><span>지인 부스</span>
         <div class="frline"><button type="button" class="frtog" id="fFrTog" aria-pressed="${draft.isFriend}">♥ 지인</button><input class="inp" id="fFr" value="${esc(draft.friendsText||"")}" placeholder="닉네임 (여러 명은 쉼표로: 하늘, 바다)"></div></div>
       <div class="field"><span>부스 시간·이벤트</span>
-        <div class="timerow"><input class="inp stime" id="fPick" value="${esc(draft.pickup)}" placeholder="14:00" inputmode="numeric" maxlength="5" aria-label="선입금 수령 마감 시간"><span style="font-weight:700;color:var(--pre);font-size:14px">선입금 수령 마감</span></div>
+        <div id="fHours">
+          <div class="timerow trng"><span class="tname" style="color:var(--on)">부스 운영</span><input class="inp stime" id="fOpenF" data-hf="openFrom" value="${esc(draft.openFrom)}" placeholder="11:00" inputmode="numeric" maxlength="5" aria-label="부스 운영 시작"><i class="tsep">~</i><input class="inp stime" id="fOpenT" data-hf="openTo" value="${esc(draft.openTo)}" placeholder="17:00" inputmode="numeric" maxlength="5" aria-label="부스 운영 끝"></div>
+          <div class="timerow trng"><span class="tname" style="color:var(--pre)">선입금 수령</span><input class="inp stime" id="fPickF" data-hf="pickupFrom" value="${esc(draft.pickupFrom)}" placeholder="11:00" inputmode="numeric" maxlength="5" aria-label="선입금 수령 시작"><i class="tsep">~</i><input class="inp stime" id="fPick" data-hf="pickup" value="${esc(draft.pickup)}" placeholder="14:00" inputmode="numeric" maxlength="5" aria-label="선입금 수령 마감"></div>
+          <p class="fhint">시작이나 끝 하나만 적어도 돼요.</p>
+        </div>
         <div id="fTimes"></div>
         <div class="tagsug" id="fTimeSug"></div></div>
       <div class="field"><span>작가 (닉네임·사이트·인포)</span>
@@ -2735,19 +2783,19 @@ function renderBoothForm(){
   frTog.addEventListener("click", ()=>{ draft.isFriend = !draft.isFriend; frTog.setAttribute("aria-pressed", String(draft.isFriend)); if(draft.isFriend) frIn.focus(); });
   frIn.addEventListener("input", ()=>{ draft.friendsText = frIn.value; if(frIn.value.trim() && !draft.isFriend){ draft.isFriend = true; frTog.setAttribute("aria-pressed","true"); } });
 
-  const fPick = document.getElementById("fPick");
-  fPick.addEventListener("input", ()=>{ draft.pickup = fPick.value; });
-  fPick.addEventListener("blur", ()=>{ const t = normTime(fPick.value); if(t){ fPick.value = t; draft.pickup = t; } });
-  const TIME_PRESETS = ["현장 판매 시작","현장 판매 마감","사인회","추첨","구매 특전","부스 철수"];
+  const fHours = document.getElementById("fHours");
+  fHours.addEventListener("input", e=>{ const t = e.target; if(t.dataset.hf) draft[t.dataset.hf] = t.value; });
+  fHours.addEventListener("focusout", e=>{ const t = e.target; if(!t.dataset.hf) return; const v = normTime(t.value); if(v){ t.value = v; draft[t.dataset.hf] = v; } });
+  const TIME_PRESETS = ["현장 판매","사인회","추첨","구매 특전","부스 철수"];
   const fTimes = document.getElementById("fTimes"), fTimeSug = document.getElementById("fTimeSug");
   const drawTimes = ()=>{
-    fTimes.innerHTML = draft.times.map((x,k)=>`<div class="timerow"><input class="inp stime" data-tk="${k}" data-tf="time" value="${esc(x.time)}" placeholder="13:00" inputmode="numeric" maxlength="5" aria-label="시간"><input class="inp" data-tk="${k}" data-tf="label" value="${esc(x.label)}" placeholder="무엇을 하는지 (특전 조건 등)"><button type="button" class="iconbtn danger" data-tkdel="${k}" aria-label="시간 지우기">${ICON_TRASH}</button></div>`).join("");
+    fTimes.innerHTML = draft.times.map((x,k)=>`<div class="timerow trng tcus"><input class="inp tlab" data-tk="${k}" data-tf="label" value="${esc(x.label)}" placeholder="이름 (사인회 등)" aria-label="무엇을 하는지"><input class="inp stime" data-tk="${k}" data-tf="time" value="${esc(x.time)}" placeholder="13:00" inputmode="numeric" maxlength="5" aria-label="시작 시간"><i class="tsep">~</i><input class="inp stime" data-tk="${k}" data-tf="end" value="${esc(x.end||"")}" placeholder="끝" inputmode="numeric" maxlength="5" aria-label="끝 시간 (없으면 비워 두기)"><button type="button" class="iconbtn danger" data-tkdel="${k}" aria-label="시간 지우기">${ICON_TRASH}</button></div>`).join("");
     fTimeSug.innerHTML = `<span class="lbl">시간 더하기</span>` + TIME_PRESETS.filter(p=>!draft.times.some(x=>x.label===p)).map(p=>`<button type="button" class="tg" style="--tc:var(--pre);--tb:var(--pre-soft)" data-tadd="${esc(p)}">+ ${esc(p)}</button>`).join("") + `<button type="button" class="tg" style="--tc:var(--muted);--tb:var(--paper)" data-tadd="">+ 직접 입력</button>`;
   };
   fTimes.addEventListener("input", e=>{ const t = e.target; if(t.dataset.tk==null) return; draft.times[+t.dataset.tk][t.dataset.tf] = t.value; });
-  fTimes.addEventListener("focusout", e=>{ const t = e.target; if(t.dataset.tf==="time"){ const v = normTime(t.value); if(v){ t.value = v; draft.times[+t.dataset.tk].time = v; } } });
+  fTimes.addEventListener("focusout", e=>{ const t = e.target; if(t.dataset.tf==="time" || t.dataset.tf==="end"){ const v = normTime(t.value); if(v){ t.value = v; draft.times[+t.dataset.tk][t.dataset.tf] = v; } } });
   fTimes.addEventListener("click", e=>{ const d = e.target.closest("[data-tkdel]"); if(d){ draft.times.splice(+d.dataset.tkdel,1); drawTimes(); } });
-  fTimeSug.addEventListener("click", e=>{ const a = e.target.closest("[data-tadd]"); if(!a) return; draft.times.push({label:a.dataset.tadd, time:""}); drawTimes(); const ins = fTimes.querySelectorAll('[data-tf="time"]'); if(ins.length) ins[ins.length-1].focus(); });
+  fTimeSug.addEventListener("click", e=>{ const a = e.target.closest("[data-tadd]"); if(!a) return; draft.times.push({label:a.dataset.tadd, time:"", end:""}); drawTimes(); const ins = fTimes.querySelectorAll(a.dataset.tadd ? '[data-tf="time"]' : '[data-tf="label"]'); if(ins.length) ins[ins.length-1].focus(); });
   drawTimes();
   document.getElementById("fMemo").addEventListener("input", e=>{ draft.memo = e.target.value; });
   if(!isNew && lockedBooth(b)) lockBoothForm();
@@ -3267,9 +3315,10 @@ try{ if(window.indexedDB) indexedDB.deleteDatabase("boothcheck-img"); }catch(e){
 function renderEvTab(){
   const sch = sortedSch(), {cur} = schNow(), today = isEventToday(), nm = nowMin();
   const booths = sortedBooths();
-  const bt = []; for(const b of booths) for(const x of b.times) bt.push({b, x});
-  bt.sort((p,q)=>(p.x.time||"99").localeCompare(q.x.time||"99"));
-  const pickups = booths.filter(b=>b.pickup).sort((a,c)=>a.pickup.localeCompare(c.pickup));
+  const bt = []; for(const b of booths){ if(b.openFrom || b.openTo) bt.push({b, x:{label:"부스 운영", time:b.openFrom, end:b.openTo}, open:true}); for(const x of b.times) bt.push({b, x}); }
+  bt.sort((p,q)=>(p.x.time||p.x.end||"99").localeCompare(q.x.time||q.x.end||"99"));
+  const pkKey = b=>b.pickup || b.pickupFrom;
+  const pickups = booths.filter(pkKey).sort((a,c)=>pkKey(a).localeCompare(pkKey(c)));
   const periods = [];
   for(const b of booths){
     for(const x of boothPeriods(b)) periods.push({b, p:x.p, ps:x.ps, label:x.label || "작가"});
@@ -3279,13 +3328,17 @@ function renderEvTab(){
   periods.sort((x,y)=>(x.ended - y.ended) || ((periodEnd(x.p)||new Date(8.64e15)) - (periodEnd(y.p)||new Date(8.64e15))));
   const free = booths.map(b=>({b, items:linesOf(b).filter(i=>i.type==="free")})).filter(x=>x.items.length);
   const code = b=>`<span class="mini" style="--sc:${secColor(b.section)}">${esc(boothCode(b))}</span>`;
-  const left = t=>{ if(!today || !t) return ""; const l = hmMin(t) - nm; return `<span class="dl ${l<0?"ok":l<=30?"soon":""}">${l<0?"지남":fmtLeft(l)+" 남음"}</span>`; };
+  const left = (t, e)=>{ const z = e ? spanState(t, e) : spanState("", t); if(!z) return "";
+    if(z.phase === "after") return `<span class="dl ok">${e ? "끝남" : "지남"}</span>`;
+    if(z.phase === "before") return `<span class="dl">${fmtLeft(z.left)} 후</span>`;
+    return e && t ? `<span class="dl soon">진행 중</span>` : `<span class="dl ${z.left<=30?"soon":""}">${fmtLeft(z.left)} 남음</span>`; };
+  const et = (t, e)=>`<b class="et">${t || (e ? "~" + e : "--:--")}${t && e ? `<small>~${e}</small>` : ""}</b>`;
   main.innerHTML = `<div class="pad evgrid">
     ${infoCardEvent()}
     ${infoCardSch()}
     ${bt.length ? `<section class="card"><h2>부스 시간·이벤트</h2>
-      ${bt.map(({b,x})=>`<button class="erow" data-act="open" data-id="${b.id}"><b class="et">${x.time||"--:--"}</b>${code(b)}<span class="el">${esc(x.label||"시간")}<small>${esc(b.name||"")}</small></span>${left(x.time)}</button>`).join("")}</section>` : ""}
-    ${pickups.length ? `<section class="card"><h2>선입금 수령 마감</h2>${pickups.map(b=>`<button class="erow" data-act="open" data-id="${b.id}"><b class="et">${b.pickup}</b>${code(b)}<span class="el">${esc(b.name||"이름 없는 부스")}</span>${left(b.pickup)}</button>`).join("")}</section>` : ""}
+      ${bt.map(({b,x,open})=>`<button class="erow${open ? " eopen" : ""}" data-act="open" data-id="${b.id}">${et(x.time, x.end)}${code(b)}<span class="el">${esc(x.label||"시간")}<small>${esc(b.name||"")}</small></span>${left(x.time, x.end)}</button>`).join("")}</section>` : ""}
+    ${pickups.length ? `<section class="card"><h2>${pickups.some(b=>b.pickupFrom) ? "선입금 수령" : "선입금 수령 마감"}</h2>${pickups.map(b=>`<button class="erow" data-act="open" data-id="${b.id}">${et(b.pickupFrom, b.pickup)}${code(b)}<span class="el">${esc(b.name||"이름 없는 부스")}</span>${left(b.pickupFrom, b.pickup)}</button>`).join("")}</section>` : ""}
     ${periods.length ? `<section class="card"><h2>${periods.some(x=>x.p.kind==="survey") ? (periods.some(x=>x.p.kind!=="survey") ? "선입금·수요조사 기간" : "수요조사 기간") : "선입금 기간"}</h2>${periods.map(x=>`<div class="erowl${x.ended ? " ended" : ""}"><button class="erow" data-act="open" data-id="${x.b.id}"><b class="et" style="width:auto;font-size:13px">${esc(periodText(x.p))}</b>${code(x.b)}<span class="el">${esc(x.label)}<small>${x.p.kind === "survey" ? "수요조사 · " : ""}${esc(x.b.name||"")}</small></span><span class="dl ${x.ps.cls}">${esc(stripKind(x.ps.text))}</span></button>${x.p.link ? `<a class="plink" href="${esc(x.p.link)}" target="_blank" rel="noopener noreferrer" aria-label="${kindWord(x.p)} 폼 열기">폼 ↗</a>` : ""}</div>`).join("")}</section>` : ""}
     ${free.length ? `<section class="card"><h2>전프레·무료 배포</h2>
       ${free.map(({b,items})=>`<div class="cgroup"><button class="chead" data-act="open" data-id="${b.id}">${code(b)}<span class="nm">${esc(b.name||"이름 없는 부스")}</span><span class="cnt">${items.filter(isFinal).length}/${items.length}</span></button>${items.map(L=>itemRow(b,L)).join("")}</div>`).join("")
@@ -3382,7 +3435,7 @@ function mergePairsText(arts1, tw1, arts2, tw2){
 const FRIEND_MARKS = ["지인","o","O","y","Y","v","V","✓","✔","♥","♡","예","ㅇ"];
 function parseFriend(v){ v = String(v||"").trim(); if(!v) return {isFriend:false, friends:[]}; if(FRIEND_MARKS.includes(v)) return {isFriend:true, friends:[]}; return {isFriend:true, friends:[...new Set(v.split(/[,，、]/).map(x=>x.trim().slice(0,30)).filter(Boolean))]}; }
 function blankRow(){ return {id:null, sec:"", num:"", name:"", tags:"", memo:"", pickup:"", friend:"", arts:"", tw:""}; }
-function rowFromBooth(b){ return {id:b.id, sec:b.section, num:boothCode(b).slice(b.section.length), name:b.name, tags:b.tags.join(", "), memo:b.memo.replace(/\n/g," "), pickup:b.pickup||"", friend:b.isFriend ? (b.friends.length ? b.friends.join(", ") : "지인") : "", arts:b.artists.map(a=>a.nick).join(", "), tw:b.artists.some(a=>a.site) ? b.artists.map(a=>twShow(a.site)).join(", ") : ""}; }
+function rowFromBooth(b){ return {id:b.id, sec:b.section, num:boothCode(b).slice(b.section.length), name:b.name, tags:b.tags.join(", "), memo:b.memo.replace(/\n/g," "), pickup:rangeText(b.pickupFrom, b.pickup), friend:b.isFriend ? (b.friends.length ? b.friends.join(", ") : "지인") : "", arts:b.artists.map(a=>a.nick).join(", "), tw:b.artists.some(a=>a.site) ? b.artists.map(a=>twShow(a.site)).join(", ") : ""}; }
 function bulkHasData(){ return !!(sh && sh.rows && sh.rows.some(r=>!r.id && BULK_COLS.some(c=>c!=="sec" && String(r[c]).trim())) || (sh && sh.rows && bulkParse().some(r=>r.st==="upd"))); }
 function splitTags(v){ return [...new Set(String(v||"").split(/[,#，、]+/).map(cleanTag).filter(Boolean))].slice(0,12); }
 function openBulk(){
@@ -3425,7 +3478,7 @@ function bulkRowHTML(r, i){
     + cell("name","w-name","부스 이름","")
     + cell("tags","w-tags","굿즈, 신간","")
     + cell("memo","w-memo","메모","")
-    + cell("pickup","w-time","14:00",'inputmode="numeric" maxlength="5"')
+    + cell("pickup","w-time","12:00~14:00",'maxlength="13"')
     + cell("friend","w-name","닉네임 또는 o","")
     + cell("arts","w-name","하늘, 바다","")
     + cell("tw","w-name","@sky, @sea",'autocapitalize="off" spellcheck="false"') + `</tr>`;
@@ -3441,10 +3494,10 @@ function renderBulk(){
       <details class="bulkhelp" id="bulkHelp" ${UIP.bulkHelp !== false ? "open" : ""}><summary>입력 방법</summary>
       <p class="bulkhint">한 줄에 부스 하나. 구역을 비우면 <b>윗줄 구역</b>을 따라가요. 번호에 <b>12-1</b>은 반 부스, <b>12~13</b>은 2부스(최대 4부스), <b>A12</b>는 구역까지 한 번에. 태그는 쉼표로 나눠요.<br>
       이미 있는 번호를 적으면 그 부스에 <b>채운 칸만 덧붙여</b> 고쳐요. ‘기존 불러오기’를 누르면 지금 부스를 표에서 바로 고칠 수 있어요. 표에서는 부스를 지우지 않아요.<br>
-      시트에서 <b>구역 / 번호 / 이름 / 태그 / 메모 / 수령 마감 / 지인 닉네임 / 작가 / 트위터 아이디</b> 순서로 복사해 붙여 넣어도 돼요. 지인 칸에 닉네임 대신 o를 적어도 지인으로 표시돼요.<br>
+      시트에서 <b>구역 / 번호 / 이름 / 태그 / 메모 / 수령 시간 / 지인 닉네임 / 작가 / 트위터 아이디</b> 순서로 복사해 붙여 넣어도 돼요. 지인 칸에 닉네임 대신 o를 적어도 지인으로 표시돼요.<br>
       지인·작가·트위터 아이디는 여러 명이면 <b>쉼표</b>로 나눠요. 작가와 트위터 아이디는 <b>같은 순서</b>로 짝지어져요 (예: 작가 <b>하늘, 바다</b> / 트위터 <b>@sky, @sea</b>).</p></details>
       <div class="bulkwrap" id="bulkWrap">
-        <table class="bulk"><thead><tr><th class="rn">확인</th><th>구역</th><th>번호</th><th>부스 이름</th><th>태그</th><th>메모</th><th>수령 마감</th><th>지인 닉네임</th><th>작가</th><th>트위터 아이디</th></tr></thead>
+        <table class="bulk"><thead><tr><th class="rn">확인</th><th>구역</th><th>번호</th><th>부스 이름</th><th>태그</th><th>메모</th><th>수령 시간</th><th>지인 닉네임</th><th>작가</th><th>트위터 아이디</th></tr></thead>
         <tbody id="bulkBody">${sh.rows.map(bulkRowHTML).join("")}</tbody></table>
       </div>
       <div class="bulkfoot">
@@ -3518,11 +3571,12 @@ function bulkParse(){
     num = num.replace(/-$/,"");
     if(!eff){ res.st = "err"; res.msg = "구역?"; out.push(res); return; }
     if(!num){ res.st = "err"; res.msg = "번호?"; out.push(res); return; }
-    const pk = r.pickup.trim() ? normTime(r.pickup) : "";
-    if(pk === null){ res.st = "err"; res.msg = "시간?"; out.push(res); return; }
+    const prg = normRange(r.pickup);
+    if(prg === null || (prg.from && prg.to && prg.from > prg.to)){ res.st = "err"; res.msg = "시간?"; out.push(res); return; }
+    const pk = prg.to, pkf = prg.from;
     const arts = parseArtists(r.arts||"", r.tw||"");
     if(arts === null){ res.st = "err"; res.msg = "트위터?"; out.push(res); return; }
-    res.num = num; res.half = half; res.span = span; res.pickup = pk; res.fr = parseFriend(r.friend); res.arts = arts;
+    res.num = num; res.half = half; res.span = span; res.pickup = pk; res.pickupFrom = pkf; res.fr = parseFriend(r.friend); res.arts = arts;
     res.code = boothCode({section:eff, num, half, span});
     res.newSec = !S.sections.includes(eff);
     const key = eff + "|" + num + "|" + half;
@@ -3534,7 +3588,7 @@ function bulkParse(){
       if(other){ res.st = "warn"; res.msg = "번호 겹침"; out.push(res); return; }
       seen.set(key, i);
       const same = b.section===eff && b.num===num && (b.half||0)===half && spanOf(b)===span && b.name===r.name.trim()
-        && b.tags.join("|")===splitTags(r.tags).join("|") && b.memo.replace(/\n/g," ")===r.memo && (b.pickup||"")===pk && !!b.isFriend===res.fr.isFriend && b.friends.join("|")===res.fr.friends.join("|") && artistsKey(b.artists)===artistsKey(res.arts);
+        && b.tags.join("|")===splitTags(r.tags).join("|") && b.memo.replace(/\n/g," ")===r.memo && (b.pickup||"")===pk && (b.pickupFrom||"")===pkf && !!b.isFriend===res.fr.isFriend && b.friends.join("|")===res.fr.friends.join("|") && artistsKey(b.artists)===artistsKey(res.arts);
       res.st = same ? "same" : "upd"; res.target = b;
     } else if(other){
       if(loadedIds.has(other.id)){ res.st = "warn"; res.msg = "중복"; out.push(res); return; }
@@ -3578,12 +3632,12 @@ function bulkSave(){
     if(!S.sections.includes(r.sec)) S.sections.push(r.sec);
     const row = sh.rows[r.i], tags = splitTags(row.tags);
     if(r.st === "ok"){
-      S.booths.push({id:uid(), section:r.sec, num:r.num, half:r.half, span:r.span, size:r.half ? 1 : 2*r.span, name:row.name.trim(), artists:r.arts.map(x=>({id:uid(), nick:x.nick, site:x.site, info:"", memo:"", preFrom:"", preTo:"", preToTime:""})), pickup:r.pickup, times:[], isFriend:r.fr.isFriend, friends:r.fr.friends, preFrom:"", preTo:"", preToTime:"", memo:row.memo.trim(), tags, pos:null, items:[]});
+      S.booths.push({id:uid(), section:r.sec, num:r.num, half:r.half, span:r.span, size:r.half ? 1 : 2*r.span, name:row.name.trim(), artists:r.arts.map(x=>({id:uid(), nick:x.nick, site:x.site, info:"", memo:"", preFrom:"", preTo:"", preToTime:""})), pickup:r.pickup, pickupFrom:r.pickupFrom, openFrom:"", openTo:"", times:[], isFriend:r.fr.isFriend, friends:r.fr.friends, preFrom:"", preTo:"", preToTime:"", memo:row.memo.trim(), tags, pos:null, items:[]});
       add++;
     } else if(r.st === "upd"){
       const b = r.target, wasFull = !b.half;
       const memoChanged = b.memo.replace(/\n/g," ") !== row.memo;
-      Object.assign(b, {section:r.sec, num:r.num, half:r.half, span:r.span, size:r.half ? 1 : 2*r.span, name:row.name.trim(), pickup:r.pickup, isFriend:r.fr.isFriend, friends:r.fr.friends, tags});
+      Object.assign(b, {section:r.sec, num:r.num, half:r.half, span:r.span, size:r.half ? 1 : 2*r.span, name:row.name.trim(), pickup:r.pickup, pickupFrom:r.pickupFrom, isFriend:r.fr.isFriend, friends:r.fr.friends, tags});
       if(memoChanged) b.memo = row.memo.trim();
       if(b.pos && wasFull !== !b.half) b.pos.rot = 0;
       if(artistsKey(b.artists) !== artistsKey(r.arts)) rebuildArtists(b, r.arts, false);
@@ -3591,7 +3645,7 @@ function bulkSave(){
     } else {
       const b = r.target;
       if(row.name.trim()) b.name = row.name.trim();
-      if(r.pickup) b.pickup = r.pickup;
+      if(r.pickup || r.pickupFrom){ b.pickup = r.pickup; b.pickupFrom = r.pickupFrom; }
       if(r.fr.isFriend){ b.isFriend = true; b.friends = [...new Set([...b.friends, ...r.fr.friends])]; }
       if(r.arts.length) rebuildArtists(b, r.arts, true);
       if(row.memo.trim()) b.memo = b.memo.trim() ? b.memo.trim() + "\n" + row.memo.trim() : row.memo.trim();
@@ -3783,7 +3837,7 @@ function shareProj(st){
   const e = st.event;
   return {event:{name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, schedule:clone(e.schedule)},
     sections:[...st.sections], cats:[...st.cats], halls:clone(st.halls), marks:clone(st.marks),
-    booths:st.booths.map(b=>({id:b.id, section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, memo:b.memo||"", tags:[...(b.tags||[])], pickup:b.pickup||"", times:clone(b.times||[]), pos:clone(b.pos||null),
+    booths:st.booths.map(b=>({id:b.id, section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, memo:b.memo||"", tags:[...(b.tags||[])], pickup:b.pickup||"", pickupFrom:b.pickupFrom||"", openFrom:b.openFrom||"", openTo:b.openTo||"", times:clone(b.times||[]), pos:clone(b.pos||null),
       artists:(b.artists||[]).map(a=>({id:a.id, nick:a.nick||"", site:a.site||"", info:a.info||"", preFrom:a.preFrom||"", preTo:a.preTo||"", preToTime:a.preToTime||"", preLink:a.preLink||"", preKind:a.preKind==="survey" ? "survey" : "", imgs:[...(a.imgs||[])]})),
       items:(b.items||[]).filter(i=>i.type === "free").map(i=>({id:i.id, name:i.name, price:0, type:"free", cat:i.cat||"", artist:i.artist||"", sample:i.sample||""}))}))};
 }
@@ -3823,7 +3877,7 @@ function applyShared(st, P, prev, keepLocal){
     const pv0 = pb.get(r.id);
     if("memo" in r){ if(keepLocal && l && String(l.memo||"").trim() && !String(l.pmemo||"").trim() && !(pv0 && "memo" in pv0) && l.memo !== r.memo) b.pmemo = l.memo; b.memo = r.memo; }
     if("tags" in r) b.tags = [...r.tags];
-    Object.assign(b, {section:r.section, num:r.num, half:r.half, span:r.span, size:r.half ? 1 : 2*r.span, name:r.name, pickup:r.pickup, times:clone(r.times), pos:clone(r.pos)});
+    Object.assign(b, {section:r.section, num:r.num, half:r.half, span:r.span, size:r.half ? 1 : 2*r.span, name:r.name, pickup:r.pickup, pickupFrom:r.pickupFrom||"", openFrom:r.openFrom||"", openTo:r.openTo||"", times:clone(r.times), pos:clone(r.pos)});
     const la = new Map((b.artists||[]).map(a=>[a.id, a]));
     b.artists = r.artists.map(ra=>Object.assign(la.get(ra.id) || {memo:"", hidden:false}, clone(ra)));
     const pv = pb.get(r.id);
@@ -4456,7 +4510,7 @@ function clRefreshUI(){
 function lockBoothForm(){
   const body = sheet.querySelector(".sh-body"); if(!body) return;
   body.insertAdjacentHTML("afterbegin", `<p class="lknote">구독한 행사의 원본 부스예요. 지인과 작가 메모만 바꿀 수 있어요. 나만 보는 메모는 부스 화면의 ‘내 메모’에 적어 주세요.</p>`);
-  ["#fSec button", "#fNum", "#fSize button", "#fName", "#fPick", "#fTimes input", "#fTimes button", "#fArtAdd", "#fTags input", "#fMemo", "#fArtists [data-kind]"].forEach(q=>body.querySelectorAll(q).forEach(el=>{ el.disabled = true; }));
+  ["#fSec button", "#fNum", "#fSize button", "#fName", "#fHours input", "#fTimes input", "#fTimes button", "#fArtAdd", "#fTags input", "#fMemo", "#fArtists [data-kind]"].forEach(q=>body.querySelectorAll(q).forEach(el=>{ el.disabled = true; }));
   body.querySelectorAll("#fArtists input").forEach(el=>{ if(el.dataset.af !== "memo") el.disabled = true; });
   body.querySelectorAll("#fArtists [data-akdel], #fArtists [data-akimgdel], #fArtists [data-af=imgIn], #fTimeSug, #fTagSug, #fTags [data-tgrm], [data-act=delBooth]").forEach(el=>{ el.style.display = "none"; });
 }
@@ -4673,13 +4727,21 @@ document.addEventListener("click", async e=>{
       if(!d.num){ toast("부스 번호를 적어 주세요"); document.getElementById("fNum").focus(); return; }
       if(sh.flushTag) sh.flushTag();
       let b; const isNewB = !sh.id;
-      const pk = d.pickup.trim() ? normTime(d.pickup) : "";
-      if(pk === null){ toast("선입금 수령 마감 시간을 14:00처럼 적어 주세요"); document.getElementById("fPick").focus(); return; }
+      const hv = {};
+      for(const [k, id, nm] of [["openFrom","fOpenF","부스 운영 시작"],["openTo","fOpenT","부스 운영 끝"],["pickupFrom","fPickF","선입금 수령 시작"],["pickup","fPick","선입금 수령 마감"]]){
+        const v = String(d[k]||"").trim() ? normTime(d[k]) : "";
+        if(v === null){ toast(`${nm} 시간을 14:00처럼 적어 주세요`); document.getElementById(id).focus(); return; }
+        hv[k] = v;
+      }
+      if(hv.openFrom && hv.openTo && hv.openFrom > hv.openTo){ toast("부스 운영 시작이 끝보다 늦어요"); document.getElementById("fOpenF").focus(); return; }
+      if(hv.pickupFrom && hv.pickup && hv.pickupFrom > hv.pickup){ toast("선입금 수령 시작이 마감보다 늦어요"); document.getElementById("fPickF").focus(); return; }
+      const pk = hv.pickup;
       const times = [];
       for(const x of d.times){
-        const lb = (x.label||"").trim(), tm = (x.time||"").trim() ? normTime(x.time) : "";
-        if(tm === null){ toast(`‘${lb || "시간"}’의 시간을 13:00처럼 적어 주세요`); return; }
-        if(lb || tm) times.push({label:lb, time:tm});
+        const lb = (x.label||"").trim(), tm = (x.time||"").trim() ? normTime(x.time) : "", te = (x.end||"").trim() ? normTime(x.end) : "";
+        if(tm === null || te === null){ toast(`‘${lb || "시간"}’의 시간을 13:00처럼 적어 주세요`); return; }
+        if(tm && te && tm > te){ toast(`‘${lb || "시간"}’ 시작이 끝보다 늦어요`); return; }
+        if(lb || tm || te) times.push({label:lb, time:tm, end:te});
       }
       const artists = [];
       for(const a of d.artists){
@@ -4695,7 +4757,7 @@ document.addEventListener("click", async e=>{
         const imgs = [...new Set([...(a.imgs||[]), ...parseUrls(a.imgIn)])].slice(0,12);
         if(nick || site || info || amemo || apf || apt || plk || imgs.length) artists.push({id:a.id || uid(), nick, site, info, memo:amemo, preFrom:apf, preTo:apt, preToTime:aptt, preLink:plk, preKind:a.preKind==="survey" ? "survey" : "", hidden:!!a.hidden, imgs});
       }
-      const fields = {section:d.section, num:d.num, half:d.half, span:d.half ? 1 : (d.span||1), size:d.half ? 1 : 2*(d.span||1), name:d.name.trim(), artists, pickup:pk, times, isFriend:!!(d.isFriend || (d.friendsText||"").trim()), friends:[...new Set((d.friendsText||"").split(/[,，、]/).map(x=>x.trim().slice(0,30)).filter(Boolean))], memo:d.memo, tags:[...d.tags]};
+      const fields = {section:d.section, num:d.num, half:d.half, span:d.half ? 1 : (d.span||1), size:d.half ? 1 : 2*(d.span||1), name:d.name.trim(), artists, pickup:pk, pickupFrom:hv.pickupFrom, openFrom:hv.openFrom, openTo:hv.openTo, times, isFriend:!!(d.isFriend || (d.friendsText||"").trim()), friends:[...new Set((d.friendsText||"").split(/[,，、]/).map(x=>x.trim().slice(0,30)).filter(Boolean))], memo:d.memo, tags:[...d.tags]};
       if(sh.id && !findBooth(sh.id)){ toast("다른 곳에서 지워진 부스예요"); closeSheet(); return; }
       if(sh.id){
         b = findBooth(sh.id); const wasFull = !b.half;
