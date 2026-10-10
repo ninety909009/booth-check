@@ -3131,16 +3131,42 @@ document.addEventListener("pointerup", dndEnd);
 document.addEventListener("pointercancel", dndEnd);
 
 /* ---------- witchform paste ---------- */
+const WF_ST = "준비\\s*중|일시\\s*품절|품절|매진|sold\\s*out|마감";
+const WF_ST_END = new RegExp("[\\s_\\-–·:]*[(\\[【]?\\s*(" + WF_ST + ")\\s*[)\\]】]?\\s*$", "i");
+const WF_ST_START = new RegExp("^[(\\[【]\\s*(" + WF_ST + ")\\s*[)\\]】]\\s*", "i");
+function wfStatus(name){
+  let n = String(name||"").trim(), st = "";
+  for(let g = 0; g < 3; g++){
+    const m = n.match(WF_ST_END) || n.match(WF_ST_START); if(!m) break;
+    st = st || m[1]; n = n.replace(m[0], "").trim();
+  }
+  return {name:n, st: /준비/.test(st) ? "prep" : st ? "sold" : ""};
+}
+function wfUnit(u){ u = String(u||"").trim(); return u && !/^1\s*개$/.test(u) ? u : ""; }
 function parseWitch(text){
-  const lines = String(text||"").replace(/\r/g,"").split("\n").map(l=>l.trim()).filter(Boolean);
+  const lines = String(text||"").replace(/\r/g,"").split("\n").map(l=>l.replace(/ /g," ").trim()).filter(Boolean);
   const out = [];
+  let pend = null;
+  const add = (rawName, price, unitRaw, extraRaw)=>{
+    const ns = wfStatus(String(rawName).replace(/^(?:\d+\s*[.)]\s*)+/, "")), us = wfStatus(unitRaw), es = wfStatus(extraRaw);
+    const name = ns.name; if(!name) return;
+    const st = ns.st || us.st || es.st;
+    out.push({name, price:parsePrice(price), unit:wfUnit(us.name), extra:es.name, qty:0, on:false, sold: st==="sold", prep: st==="prep"});
+  };
   for(const ln of lines){
     const q = ln.match(/^[-−–]\s*(\d+)?\s*\+$/);
-    if(q){ if(out.length && q[1] != null){ const r = out[out.length-1]; r.qty = Math.max(0, +q[1]); r.on = r.qty > 0; } continue; }
-    const m = ln.match(/^(?:\d+\s*[.)]\s*)*(.+?)\s*[(（]\s*([\d,]+)\s*원\s*(?:\/\s*([^)）]*))?[)）]\s*(.*)$/);
-    if(!m) continue;
-    const unit = (m[3]||"").trim(), extra = (m[4]||"").trim();
-    out.push({name:m[1].trim(), price:parsePrice(m[2]), unit: unit && !/^1\s*개$/.test(unit) ? unit : "", extra, qty:0, on: false, sold: /품절|sold\s*out/i.test(extra + m[1])});
+    if(q){ pend = null; if(out.length && q[1] != null){ const r = out[out.length-1]; r.qty = Math.max(0, +q[1]); r.on = r.qty > 0; } continue; }
+    // 이름 (3,000원/1개)
+    let m = ln.match(/^(.+?)\s*[(（]\s*([\d,]+)\s*원\s*(?:\/\s*([^)）]*))?[)）]\s*(.*)$/);
+    if(m){ add(m[1], m[2], m[3], m[4]); pend = null; continue; }
+    // 3,000원 / 1개  (앞 줄이 이름)
+    m = ln.match(/^(?:가격\s*[:：]?\s*)?([\d,]+)\s*원\s*(?:\/\s*(.*))?$/);
+    if(m){ if(pend){ add(pend, m[1], m[2], ""); pend = null; } continue; }
+    // 이름 3,000원 / 1개
+    m = ln.match(/^(.*?\S)\s+([\d,]+)\s*원\s*(?:\/\s*(.*))?$/);
+    if(m && /[^\d\s.,)]/.test(m[1])){ add(m[1], m[2], m[3], ""); pend = null; continue; }
+    if(/^(?:수량|선택|옵션|합계|총\s*(?:금액|합계)?|금액|[-+−–]|\d+\s*개?|남은\s*수량.*|재고.*)$/.test(ln)) continue;
+    pend = ln;
   }
   return out;
 }
@@ -3156,8 +3182,8 @@ function renderWitch(){
     <div class="sh-grab" id="grab"><div class="handle"></div>
       <div class="sh-head sh-plain"><button class="back" data-act="backBooth">${ICON_BACK}${esc(boothCode(b))}</button><h3 style="flex:1">윗치폼 붙여넣기</h3></div></div>
     <div class="sh-body">
-      <p class="bulkhint">윗치폼의 상품 선택란을 통째로 복사해서 붙여 넣으세요. <b>이름 (3,000원/1개)</b> 줄을 읽어 와요. <b>살 물품만 체크</b>하거나 수량을 적으면 구매 리스트에 들어가요. ‘- 2 +’처럼 숫자가 있으면 그 수량으로 미리 체크돼요.</p>
-      <textarea class="inp" id="wfIn" style="min-height:130px" placeholder="1. 복스알래 씰스티커 01 (3,000원/1개)&#10;- +&#10;2. 복스알래 씰스티커 02 (3,000원/1개)">${esc(sh.text||"")}</textarea>
+      <p class="bulkhint">윗치폼 상품 목록을 <b>통째로 복사해 붙여 넣으세요.</b> 이름·가격은 알아서 읽어요. <b>살 물품만 체크</b>하면 구매 리스트에 들어가요.</p>
+      <textarea class="inp" id="wfIn" style="min-height:130px" placeholder="복스알래 씰스티커 01&#10;3,000원 / 1개&#10;복스알래 씰스티커 02&#10;3,000원 / 1개">${esc(sh.text||"")}</textarea>
       <div class="wfopts">
         <div class="pick" id="wfType">
           <button class="pre" data-type="pre" aria-pressed="${sh.type==="pre"}">선입금</button>
@@ -3225,9 +3251,10 @@ function wfDraw(){
   gr.innerHTML = canGroup ? `<input type="checkbox" id="wfGroup" ${sh.group?"checked":""}> 이름이 같은 물품을 하위 물품으로 묶기 (예: 아크릴 키링 → 하늘, 바다)` : "";
   const plan = wfPlan(sh.group && canGroup);
   const rowHTML = (k, sub)=>{ const r = rows[k], nm = sub ? wfName(r).split(/\s+/).pop() : wfName(r);
-    return `<div class="wfrow ${sub?"wsub":""} ${r.on?"":"off"}"><input type="checkbox" data-wk="${k}" ${r.on?"checked":""} aria-label="살 물품으로 고르기"><span class="wn">${esc(nm)}${r.sold ? ' <small style="display:inline;color:var(--danger)">품절</small>' : ""}${r.unit || r.extra ? `<small>${esc([r.unit ? r.unit + " 단위" : "", r.extra].filter(Boolean).join(" · "))}</small>` : ""}</span><span class="wp">${sh.type==="free" ? "무료" : won(r.price)}</span><input class="inp" data-wk="${k}" value="${r.qty || ""}" placeholder="0" inputmode="numeric" aria-label="수량"></div>`; };
-  list.innerHTML = rows.length ? plan.map(x=> x.group ? `<div class="wfgrp">${esc(x.group)} <small>하위 ${x.ks.length}개</small></div>` + x.ks.map(k=>rowHTML(k, true)).join("") : rowHTML(x.k, false)).join("")
-    : `<div class="empty" style="padding:20px">${sh.text ? "물품 줄을 찾지 못했어요. ‘이름 (3,000원/1개)’ 모양인지 확인해 주세요." : "붙여 넣으면 여기에 미리 보기가 나와요."}</div>`;
+    return `<div class="wfrow ${sub?"wsub":""} ${r.on?"":"off"}"><input type="checkbox" data-wk="${k}" ${r.on?"checked":""} aria-label="살 물품으로 고르기"><span class="wn">${esc(nm)}${r.sold ? ' <small style="display:inline;color:var(--danger)">품절</small>' : ""}${r.prep ? ' <small style="display:inline;color:var(--star)">준비 중</small>' : ""}${r.unit || r.extra ? `<small>${esc([r.unit ? r.unit + " 단위" : "", r.extra].filter(Boolean).join(" · "))}</small>` : ""}</span><span class="wp">${sh.type==="free" ? "무료" : won(r.price)}</span><input class="inp" data-wk="${k}" value="${r.qty || ""}" placeholder="0" inputmode="numeric" aria-label="수량"></div>`; };
+  const allOn = rows.length && rows.every(r=>r.on || r.sold);
+  list.innerHTML = rows.length ? `<div class="wfgrp" style="border-top:0"><span style="flex:1">${rows.length}개 읽음</span><button class="btn ghost sm" data-act="wfAll" data-on="${allOn?0:1}">${allOn ? "전체 해제" : "전체 선택"}</button></div>` + plan.map(x=> x.group ? `<div class="wfgrp">${esc(x.group)} <small>하위 ${x.ks.length}개</small></div>` + x.ks.map(k=>rowHTML(k, true)).join("") : rowHTML(x.k, false)).join("")
+    : `<div class="empty" style="padding:20px">${sh.text ? "물품 줄을 찾지 못했어요. ‘이름 (3,000원/1개)’ 또는 ‘이름’ 다음 줄에 ‘3,000원 / 1개’ 모양인지 확인해 주세요." : "붙여 넣으면 여기에 미리 보기가 나와요."}</div>`;
   const on = rows.filter(r=>r.on), nItems = plan.filter(x=> x.group ? x.ks.some(k=>rows[k].on) : rows[x.k].on).length;
   const total = on.reduce((n,r)=>n + (sh.type==="free" ? 0 : r.price * r.qty), 0), picked = on.reduce((n,r)=>n + r.qty, 0);
   sum.innerHTML = rows.length ? (nItems ? `<b>${nItems}개</b> 추가${sh.type!=="free" ? ` · ${won(total)}` : ""}` : "살 물품을 체크하거나 수량을 적어 주세요") : "";
@@ -4488,11 +4515,16 @@ document.addEventListener("click", async e=>{
     case "iedit": { const k = t.dataset.k; if(infoEdit.has(k)) infoEdit.delete(k); else infoEdit.add(k); renderView(); break; }
     case "ckfold": { UIP.ckBar = !UIP.ckBar; saveUIP(); t.setAttribute("aria-expanded", String(UIP.ckBar)); const o = document.getElementById("ckOpts"); if(o) o.hidden = !UIP.ckBar; ckFoldInfo(); break; }
     case "wfOpen": openSheet({kind:"wf", id:sh.id, text:""}); break;
+    case "wfAll": {
+      const v = t.dataset.on === "1";
+      for(const r of sh.rows||[]){ if(v && r.sold) continue; r.on = v; r.qty = v ? (r.qty || 1) : 0; }
+      wfDraw(); break;
+    }
     case "wfAdd": {
       const b = findBooth(sh.id); if(!b) return;
       const rows = sh.rows || [], plan = wfPlan(sh.group && wfPlan(true).some(x=>x.group));
       const base = {type:sh.type, st:0, must:false, maybe:false, cat:sh.cat||"", sample:"", artist: soleArtist(b) || sh.art || ""};
-      const noteOf = r=>[r.unit ? r.unit + " 단위" : "", r.extra].filter(Boolean).join(" · ").slice(0,80);
+      const noteOf = r=>[r.unit ? r.unit + " 단위" : "", r.prep ? "준비 중" : "", r.extra].filter(Boolean).join(" · ").slice(0,80);
       let n = 0;
       for(const x of plan){
         if(x.group){
