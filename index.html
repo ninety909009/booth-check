@@ -566,6 +566,22 @@ a.anick{background:var(--pre-soft);color:var(--pre)}
 .ivrow .k{flex:none;width:64px;color:var(--muted);font-size:13px;padding-top:1px}
 .ivrow .v{flex:1;min-width:0;white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere}
 .ivempty{font-size:14px;color:var(--muted);margin:4px 0 0;line-height:1.6}
+.exrow{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+.chd + .exrow{border-top:0}
+.exck{flex:none;width:26px;height:26px;margin-top:1px;border-radius:50%;border:2px solid var(--line);background:var(--card);color:#fff;font-size:14px;font-weight:800;display:grid;place-items:center;padding:0}
+.exck[aria-pressed="true"]{background:var(--done);border-color:var(--done)}
+.exb{flex:1;min-width:0}
+.ext{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ext b{font-size:15px}
+.exm{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:3px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.exm span + span::before{content:"·";margin-right:10px}
+.exn{margin-top:4px;font-size:14px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.exb .plink{margin-top:6px}
+.exrow.done .ext b,.exrow.done .exm,.exrow.done .exn{color:var(--muted)}
+.exrow.done .ext b{text-decoration:line-through}
+.exed{padding:10px 0 12px;border-top:1px solid var(--line)}
+.exed:first-child{border-top:0}
+.exed .timerow .inp:not(.stime){font-weight:700}
 .vchips{display:flex;flex-wrap:wrap;gap:6px}
 .vchip{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:17px;font-weight:700;font-size:15px;color:#fff;background:var(--sc)}
 .vchip.tagj{border:0;cursor:pointer;font:inherit;font-weight:700;font-size:15px}
@@ -1089,16 +1105,21 @@ const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 
 /* ---------- state ---------- */
 function defaultState(){
-  return {v:1, event:{name:"",date:"",time:"",place:"",info:"",schedule:[]}, sections:["A","B","C","D"], booths:[], halls:[{id:uid(), name:"1관", w:36, h:24}], marks:[], cats:["스티커","만화 회지","글 회지","엽서","아크릴","포토카드","기타"], people:[]};
+  return {v:1, event:{name:"",date:"",time:"",place:"",info:"",schedule:[],extras:[]}, sections:["A","B","C","D"], booths:[], halls:[{id:uid(), name:"1관", w:36, h:24}], marks:[], cats:["스티커","만화 회지","글 회지","엽서","아크릴","포토카드","기타"], people:[]};
 }
 function normalize(d){
   const s = defaultState();
   if(!d || typeof d !== "object") return s;
   if(d.event && typeof d.event === "object"){
-    for(const k of Object.keys(s.event)){ if(k !== "schedule") s.event[k] = typeof d.event[k] === "string" ? d.event[k].slice(0, k === "info" ? 3000 : 200) : ""; }
+    for(const k of Object.keys(s.event)){ if(k !== "schedule" && k !== "extras") s.event[k] = typeof d.event[k] === "string" ? d.event[k].slice(0, k === "info" ? 3000 : 200) : ""; }
     if(Array.isArray(d.event.schedule)) s.event.schedule = d.event.schedule.slice(0,300).filter(x=>x&&typeof x==="object").map(x=>({
       id:sid(x.id)||uid(), time:/^\d{2}:\d{2}$/.test(str(x.time))?x.time:"", text:str(x.text||"").slice(0,200)
     }));
+    /* 행사에서 진행하는 이벤트 (스탬프 랠리·추첨·입장 특전 등). done은 나만 보는 참여 체크 */
+    if(Array.isArray(d.event.extras)) s.event.extras = d.event.extras.slice(0,100).filter(x=>x&&typeof x==="object").map(x=>({
+      id:sid(x.id)||uid(), title:str(x.title||"").slice(0,80), from:normTime(x.from)||"", to:normTime(x.to)||"", place:str(x.place||"").slice(0,80),
+      note:str(x.note||"").slice(0,1000), link:normLink(x.link)||"", done:!!x.done
+    })).filter(x=>x.title||x.note||x.from||x.to||x.place||x.link);
   }
   if(Array.isArray(d.sections)) s.sections = d.sections.slice(0,100).map(x=>str(x).trim().slice(0,20)).filter(x=>x && !isReserved(x)).filter((x,i,a)=>a.indexOf(x)===i);
   const cint = (v,lo,hi,df)=>{ v = Math.round(num(v)); return isNaN(v) ? df : Math.max(lo, Math.min(hi, v)); };
@@ -2043,6 +2064,37 @@ function infoCardSch(){
       </div>
     </div>`;
 }
+function exFilled(x){ return !!(x.title || x.note.trim() || x.from || x.to || x.place || x.link); }
+function sortedExtras(all){ return (S.event.extras || []).filter(x=>all || exFilled(x)).slice().sort((a,b)=>(a.from||a.to||"99").localeCompare(b.from||b.to||"99")); }
+function infoCardExtra(){
+  const xs = sortedExtras();
+  if(!infoEdit.has("ext")){
+    const chip = x=>{ const z = spanState(x.from, x.to); if(!z) return "";
+      if(z.phase === "after") return `<span class="dl ok">끝남</span>`;
+      if(z.phase === "before") return `<span class="dl">${fmtLeft(z.left)} 후</span>`;
+      return x.from ? `<span class="dl soon">진행 중</span>` : `<span class="dl ${z.left<=30?"soon":""}">${fmtLeft(z.left)} 남음</span>`; };
+    const order = xs.filter(x=>!x.done).concat(xs.filter(x=>x.done));
+    return `<div class="card">${cardHead("행사 이벤트","ext")}${order.length ? order.map(x=>`<div class="exrow${x.done ? " done" : ""}">
+        <button type="button" class="exck" data-act="exdone" data-xid="${x.id}" aria-pressed="${x.done}" aria-label="참여 완료 표시">${x.done ? "✓" : ""}</button>
+        <div class="exb"><div class="ext"><b>${esc(x.title || "이벤트")}</b>${x.done ? `<span class="dl ok">참여함</span>` : chip(x)}</div>
+          ${x.from || x.to || x.place ? `<div class="exm">${x.from || x.to ? `<span>${rangeText(x.from, x.to)}</span>` : ""}${x.place ? `<span>${esc(x.place)}</span>` : ""}</div>` : ""}
+          ${x.note.trim() ? `<div class="exn">${esc(x.note.trim())}</div>` : ""}
+          ${x.link ? `<a class="plink" href="${esc(x.link)}" target="_blank" rel="noopener noreferrer">자세히 ↗</a>` : ""}</div></div>`).join("")
+      : `<p class="ivempty">스탬프 랠리, 추첨, 입장 특전, 포토존처럼 행사에서 따로 하는 이벤트를 적어 두세요. ‘편집’을 눌러 추가해요.</p>`}</div>`;
+  }
+  const xsAll = sortedExtras(true);
+  return `<div class="card">${cardHead("행사 이벤트","ext")}
+      <p class="desc">입력하면 바로 저장돼요. 시간은 시작이나 끝 하나만 적어도 돼요. 왼쪽 동그라미는 참여 체크예요(나만 보여요).</p>
+      <div id="exList">${xsAll.map(x=>`<div class="exed">
+        <div class="timerow"><input class="inp" data-ex="title" data-xid="${x.id}" value="${esc(x.title)}" placeholder="이벤트 이름 (예: 스탬프 랠리)" maxlength="80"><button type="button" class="iconbtn danger" data-act="exdel" data-xid="${x.id}" aria-label="이벤트 지우기">${ICON_TRASH}</button></div>
+        <div class="timerow trng"><span class="tname">시간</span><input class="inp stime" data-ex="from" data-xid="${x.id}" value="${esc(x.from)}" placeholder="시작" inputmode="numeric" maxlength="5" aria-label="시작"><i class="tsep">~</i><input class="inp stime" data-ex="to" data-xid="${x.id}" value="${esc(x.to)}" placeholder="끝" inputmode="numeric" maxlength="5" aria-label="끝"></div>
+        <input class="inp" data-ex="place" data-xid="${x.id}" value="${esc(x.place)}" placeholder="장소 (예: 2홀 입구)" maxlength="80" style="margin-bottom:8px">
+        <textarea class="inp" data-ex="note" data-xid="${x.id}" placeholder="내용·참여 조건 (예: 3만원 이상 구매 시 스탬프 1개)" maxlength="1000" style="min-height:64px;margin-bottom:8px">${esc(x.note)}</textarea>
+        <input class="inp" data-ex="link" data-xid="${x.id}" value="${esc(x.link)}" placeholder="안내 링크 (선택, https://…)" autocapitalize="off" spellcheck="false">
+      </div>`).join("")}</div>
+      <button type="button" class="btn ghost block" data-act="exadd" style="height:42px;margin-top:4px">+ 이벤트 추가</button>
+    </div>`;
+}
 function infoCardSec(){
   const cnt = {}; for(const b of S.booths) cnt[b.section] = (cnt[b.section]||0)+1;
   if(!infoEdit.has("sec")){
@@ -2568,6 +2620,7 @@ function makeText(o){
   if(e.info.trim()) L.push("", e.info.trim());
   const sch = sortedSch().filter(x=>x.time||x.text);
   if(sch.length){ L.push("", "[진행 시간표]"); for(const x of sch) L.push(`${x.time||"--:--"} ${x.text}`); }
+  { const xs = sortedExtras(); if(xs.length){ L.push("", "[행사 이벤트]"); for(const x of xs){ L.push(`- ${x.title || "이벤트"}${x.from || x.to ? "  " + rangeText(x.from, x.to) : ""}${x.place ? "  @" + x.place : ""}${x.link ? "  " + x.link : ""}`); if(x.note.trim()) L.push("  " + x.note.trim().replace(/\n/g, " / ")); } } }
   let cur = null;
   for(const b of sortedBooths()){
     if(b.section !== cur){ cur = b.section; L.push("", `[${cur} 구역]`); }
@@ -3470,6 +3523,7 @@ function renderEvTab(){
   main.innerHTML = `<div class="pad evgrid">
     ${infoCardEvent()}
     ${infoCardSch()}
+    ${infoCardExtra()}
     ${bt.length ? `<section class="card"><h2>부스 시간·이벤트</h2>
       ${bt.map(({b,x,open})=>`<button class="erow${open ? " eopen" : ""}" data-act="open" data-id="${b.id}">${et(x.time, x.end)}${code(b)}<span class="el">${esc(x.label||"시간")}<small>${esc(b.name||"")}</small></span>${left(x.time, x.end)}</button>`).join("")}</section>` : ""}
     ${pickups.length ? `<section class="card"><h2>${pickups.some(b=>b.pickupFrom) ? "선입금 수령" : "선입금 수령 마감"}</h2>${pickups.map(b=>`<button class="erow" data-act="open" data-id="${b.id}">${et(b.pickupFrom, b.pickup)}${code(b)}<span class="el">${esc(b.name||"이름 없는 부스")}</span>${left(b.pickupFrom, b.pickup)}</button>`).join("")}</section>` : ""}
@@ -3976,14 +4030,14 @@ function srcSets(){
 }
 function lockedBooth(b){ const s = srcSets(); return !!(s && b && s.booths.has(b.id)); }
 function lockedItem(i){ const s = srcSets(); return !!(s && i && s.items.has(i.id)); }
-function isBlank(st){ return !st.event.name && !st.booths.length && !st.people.length && !st.event.schedule.length; }
+function isBlank(st){ return !st.event.name && !st.booths.length && !st.people.length && !st.event.schedule.length && !(st.event.extras || []).length; }
 
 /* 공유되는 부분만 뽑기: 행사 정보·구역·종류·배치도·부스·작가·태그·부스 메모·무료 배포 물품. 수령 방법도 포함. 나머지 구매 리스트·지인은 빠짐 */
 function clone(o){ return o == null ? o : JSON.parse(JSON.stringify(o)); }
 function eqJ(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
 function shareProj(st){
   const e = st.event;
-  return {event:{name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, schedule:clone(e.schedule)},
+  return {event:{name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, schedule:clone(e.schedule), extras:(e.extras||[]).map(x=>({id:x.id, title:x.title, from:x.from, to:x.to, place:x.place, note:x.note, link:x.link}))},
     sections:[...st.sections], cats:[...st.cats], halls:clone(st.halls), marks:clone(st.marks),
     booths:st.booths.map(b=>({id:b.id, section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, memo:b.memo||"", tags:[...(b.tags||[])], recv:[...(b.recv||[])], rmemo:b.rmemo||"", pickup:b.pickup||"", pickupFrom:b.pickupFrom||"", openFrom:b.openFrom||"", openTo:b.openTo||"", times:clone(b.times||[]), pos:clone(b.pos||null),
       artists:(b.artists||[]).map(a=>({id:a.id, nick:a.nick||"", site:a.site||"", info:a.info||"", recv:[...(a.recv||[])], memo:a.memo||"", preFrom:a.preFrom||"", preTo:a.preTo||"", preToTime:a.preToTime||"", preLink:a.preLink||"", preKind:a.preKind==="survey" ? "survey" : "", imgs:[...(a.imgs||[])]})),
@@ -3996,6 +4050,7 @@ function sanitizeProj(p){
   const out = shareProj(st);
   if(!p.booths.some(b=>b && typeof b === "object" && ("memo" in b || "tags" in b))) out.booths.forEach(b=>{ delete b.memo; delete b.tags; });
   if(!p.booths.some(b=>b && typeof b === "object" && Array.isArray(b.items))) out.booths.forEach(b=>{ delete b.items; });
+  if(!(p.event && typeof p.event === "object" && Array.isArray(p.event.extras))) delete out.event.extras;
   /* 예전 버전 공유본(수령 방법 없음)이면 받는 쪽 값을 그대로 둠 */
   if(!p.booths.some(b=>b && typeof b === "object" && ("recv" in b || (Array.isArray(b.artists) && b.artists.some(a=>a && typeof a === "object" && "recv" in a))))) out.booths.forEach(b=>{ delete b.recv; delete b.rmemo; b.artists.forEach(a=>{ delete a.recv; delete a.memo; }); });
   return out;
@@ -4017,6 +4072,7 @@ function mergeStrs(local, remote, prev, keepLocal){
 function applyShared(st, P, prev, keepLocal){
   const e = P.event;
   Object.assign(st.event, {name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, schedule:clone(e.schedule)});
+  if(Array.isArray(e.extras)){ const dn = new Set((st.event.extras||[]).filter(x=>x.done).map(x=>x.id)); st.event.extras = e.extras.map(x=>({...clone(x), done:dn.has(x.id)})); }
   st.sections = mergeStrs(st.sections, P.sections, prev && prev.sections, keepLocal);
   st.cats = mergeStrs(st.cats, P.cats, prev && prev.cats, keepLocal);
   st.halls = mergeIds(st.halls, P.halls, prev && prev.halls, keepLocal, (l, r)=>Object.assign(l || {}, clone(r)));
@@ -4998,6 +5054,23 @@ document.addEventListener("click", async e=>{
       save(); tx.value = ""; ti.value = ""; renderSchList(); renderTop(); ti.focus();
       break;
     }
+    case "exadd": {
+      if(!S.event.extras) S.event.extras = [];
+      if(S.event.extras.length >= 100){ toast("이벤트는 100개까지 적을 수 있어요"); return; }
+      const nx = {id:uid(), title:"", from:"", to:"", place:"", note:"", link:"", done:false};
+      S.event.extras.push(nx); save(); renderView();
+      const i = document.querySelector(`[data-ex="title"][data-xid="${nx.id}"]`); if(i) i.focus();
+      break;
+    }
+    case "exdel": {
+      const x = (S.event.extras||[]).find(y=>y.id===t.dataset.xid); if(!x) return;
+      if(x.title || x.note ? await confirmBox(`‘${x.title || "이벤트"}’를 지울까요?`, "삭제", true) : true){ S.event.extras = S.event.extras.filter(y=>y!==x); save(); renderView(); }
+      break;
+    }
+    case "exdone": {
+      const x = (S.event.extras||[]).find(y=>y.id===t.dataset.xid); if(!x) return;
+      x.done = !x.done; save(); renderView(); break;
+    }
     case "schdel": {
       const x = S.event.schedule.find(y=>y.id===t.dataset.sid); if(!x) return;
       if(await confirmBox(`${x.time} ${x.text} 일정을 지울까요?`, "삭제", true)){
@@ -5073,10 +5146,19 @@ document.addEventListener("input", e=>{
   const t = e.target;
   if(t.id === "q"){ clearTimeout(qT); qT = setTimeout(()=>{ query = t.value.trim(); renderBoothList(); }, 120); }
   else if(t.dataset.ev){ S.event[t.dataset.ev] = t.value; save(); renderTop(); }
+  else if(t.dataset.ex && t.dataset.ex !== "from" && t.dataset.ex !== "to" && t.dataset.ex !== "link"){ const x = (S.event.extras||[]).find(y=>y.id===t.dataset.xid); if(x){ x[t.dataset.ex] = t.value.slice(0, t.dataset.ex === "note" ? 1000 : 80); save(); } }
   else if(t.dataset.sch === "text"){ const x = S.event.schedule.find(y=>y.id===t.dataset.sid); if(x){ x.text = t.value; save(); renderTop(); } }
 });
 document.addEventListener("change", e=>{
   const t = e.target;
+  if(t.dataset.ex === "from" || t.dataset.ex === "to" || t.dataset.ex === "link"){
+    const x = (S.event.extras||[]).find(y=>y.id===t.dataset.xid); if(!x) return;
+    const k = t.dataset.ex, v = t.value.trim();
+    if(k === "link"){ const l = v ? normLink(v) : ""; if(l === null){ toast("링크는 https://로 시작하게 적어 주세요"); t.value = x.link; return; } x.link = l; t.value = l; }
+    else { const tm = v ? normTime(v) : ""; if(tm === null){ toast("시간을 14:00처럼 적어 주세요"); t.value = x[k]; return; } x[k] = tm; t.value = tm; }
+    if(x.from && x.to && x.from > x.to) toast("시작이 끝보다 늦어요. 한 번 확인해 주세요");
+    save(); return;
+  }
   if(t.dataset.sch === "time"){
     const x = S.event.schedule.find(y=>y.id===t.dataset.sid);
     if(x){
