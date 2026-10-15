@@ -404,6 +404,21 @@ select.inp{appearance:none;-webkit-appearance:none;padding-right:30px;background
 .fhint{margin:-2px 0 10px;font-size:12px;color:var(--muted)}
 #fHours{padding-bottom:4px;margin-bottom:8px;border-bottom:1px dashed var(--line)}
 .trow.open .tl{color:var(--on);font-weight:700}
+.recvbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:12px}
+.recvbox .rh{font-size:14px;font-weight:700;margin-bottom:8px;display:flex;align-items:baseline;gap:8px}
+.recvbox .rh small{font-size:12px;font-weight:500;color:var(--muted)}
+.rrow + .rrow{border-top:1px solid var(--line);margin-top:8px;padding-top:8px}
+.rrow .rn{display:block;font-size:13px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.rchips{display:flex;flex-wrap:wrap;gap:6px}
+.rchip{height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--paper);color:var(--muted);font-size:13px;font-weight:700}
+.rchip[aria-pressed="true"]{border-color:var(--pre);background:var(--pre);color:#fff}
+.rchip[aria-pressed="true"]::before{content:"✓ "}
+.recvbox .rmemo{margin-top:8px;height:40px;width:100%}
+.recvbox.ro .rchip:not([aria-pressed="true"]){display:none}
+.recvbox.ro .rchip{opacity:1;cursor:default}
+.recvbox.ro .rmemo{opacity:1;color:var(--text);-webkit-text-fill-color:var(--text)}
+.crcv{display:flex;gap:8px;align-items:baseline;padding:6px 12px;font-size:13px;color:var(--text);background:var(--paper);border-bottom:1px solid var(--line)}
+.crcv span{flex:none;font-size:12px;font-weight:700;color:var(--pre)}
 .erow .et small{display:block;font-size:12px;font-weight:600;color:var(--muted);line-height:1.1}
 .alertline{display:flex;align-items:center;gap:8px;margin-top:8px;background:#FFE14D;color:#1A1D3A;border:0;border-radius:10px;padding:7px 10px;font-size:13px;font-weight:700;width:100%;text-align:left}
 .alertline.late{background:var(--on);color:#fff}
@@ -1098,12 +1113,14 @@ function normalize(d){
       name: str(b.name || "").slice(0,100),
       memo: str(b.memo || "").slice(0,3000),
       pmemo: str(b.pmemo || "").slice(0,2000),
+      recv: normRecv(b.recv, b.rmemo),
+      rmemo: str(b.rmemo || "").slice(0,200),
       _link: normLink(b.link) || "",
       pickup: normTime(b.pickup) || "",
       pickupFrom: normTime(b.pickupFrom) || "",
       openFrom: normTime(b.openFrom) || "",
       openTo: normTime(b.openTo) || "",
-      artists: Array.isArray(b.artists) ? b.artists.slice(0,30).filter(a=>a&&typeof a==="object").map(a=>({id:sid(a.id)||uid(), nick:str(a.nick||"").trim().slice(0,30), site:normSite(a.site)||"", info:normLink(a.info)||"", memo:str(a.memo||"").slice(0,200), preFrom:validDate(a.preFrom), preTo:validDate(a.preTo), preToTime:normTime(a.preToTime)||"", preLink:normLink(a.preLink)||"", preKind:a.preKind==="survey" ? "survey" : "", hidden:!!a.hidden, imgs:Array.isArray(a.imgs) ? [...new Set(a.imgs.map(u=>normLink(u)).filter(Boolean))].slice(0,12) : []})).filter(a=>a.imgs.length||a.nick||a.site||a.info||a.memo||a.preFrom||a.preTo||a.preLink) : [],
+      artists: Array.isArray(b.artists) ? b.artists.slice(0,30).filter(a=>a&&typeof a==="object").map(a=>({id:sid(a.id)||uid(), nick:str(a.nick||"").trim().slice(0,30), site:normSite(a.site)||"", info:normLink(a.info)||"", memo:str(a.memo||"").slice(0,200), recv:normRecv(a.recv, a.memo), preFrom:validDate(a.preFrom), preTo:validDate(a.preTo), preToTime:normTime(a.preToTime)||"", preLink:normLink(a.preLink)||"", preKind:a.preKind==="survey" ? "survey" : "", hidden:!!a.hidden, imgs:Array.isArray(a.imgs) ? [...new Set(a.imgs.map(u=>normLink(u)).filter(Boolean))].slice(0,12) : []})).filter(a=>a.imgs.length||a.nick||a.site||a.info||a.memo||a.recv.length||a.preFrom||a.preTo||a.preLink) : [],
       friends: Array.isArray(b.friends) ? [...new Set(b.friends.map(f=>str(f||"").trim().slice(0,30)).filter(Boolean))] : (str(b.friend||"").trim() ? [str(b.friend).trim().slice(0,30)] : []),
       isFriend: !!b.isFriend || !!str(b.friend||"").trim() || (Array.isArray(b.friends) && b.friends.some(f=>str(f||"").trim())),
       _bp: {preFrom: validDate(b.preFrom), preTo: validDate(b.preTo), preToTime: normTime(b.preToTime) || ""},
@@ -1564,6 +1581,46 @@ function schNow(){
 function nowMin(){ const n = new Date(); return n.getHours()*60 + n.getMinutes(); }
 function hmMin(t){ const [h,m] = t.split(":").map(Number); return h*60 + m; }
 function fmtLeft(m){ return m >= 60 ? `${Math.floor(m/60)}시간${m%60 ? " " + m%60 + "분" : ""}` : `${m}분`; }
+/* ---------- 수령 방법 (실시간 공유됨, 구독자는 읽기 전용) ---------- */
+const RECV = [["name4","성함+번호 끝 4자리"],["wfqr","윗치폼 QR"],["tmmqr","TMM QR"],["custom","직접 작성"]];
+const RECV_KEYS = new Set(RECV.map(x=>x[0]));
+function normRecv(v, memo){
+  if(Array.isArray(v)) return [...new Set(v.map(x=>str(x)).filter(x=>RECV_KEYS.has(x)))];
+  return str(memo||"").trim() ? ["custom"] : [];
+}
+function recvTargets(b){ const arts = b.artists.filter(a=>!a.hidden); return arts.length ? arts : (b.artists.length ? [] : [null]); }
+function recvLabels(o, memo){ return (o.recv||[]).map(k=> k === "custom" ? (String(memo||"").trim() || "직접 작성") : RECV.find(x=>x[0]===k)[1]); }
+function recvText(b){
+  const tg = recvTargets(b), multi = tg.length > 1;
+  return tg.map(a=>{ const l = recvLabels(a || b, a ? a.memo : b.rmemo); return l.length ? (multi ? (a.nick || "작가") + ": " : "") + l.join(", ") : ""; }).filter(Boolean).join(" / ");
+}
+function recvBox(b){
+  const tg = recvTargets(b); if(!tg.length) return "";
+  const multi = tg.length > 1, ro = isSub() && lockedBooth(b);
+  if(ro && !tg.some(a=>((a || b).recv || []).length)) return "";
+  return `<div class="recvbox${ro ? " ro" : ""}" id="bRecv"><div class="rh">수령 방법<small>${ro ? "원본 정보" : "여러 개 고를 수 있어요"}</small></div>${tg.map(a=>{
+    const o = a || b, rv = o.recv || [], memo = a ? a.memo : b.rmemo, aid = a ? a.id : "";
+    return `<div class="rrow">${multi ? `<span class="rn">${esc(a.nick || "작가")}</span>` : ""}<div class="rchips">${RECV.map(([k,l])=>`<button type="button" class="rchip" data-rcv="${k}" data-raid="${aid}" aria-pressed="${rv.includes(k)}" ${ro ? "disabled" : ""}>${l}</button>`).join("")}</div>${rv.includes("custom") ? `<input class="inp rmemo" ${ro ? "disabled" : ""} data-rmemo="${aid}" value="${esc(memo||"")}" placeholder="수령 방법 직접 적기 (예: 트위터 닉네임 말하기)" maxlength="200">` : ""}</div>`; }).join("")}</div>`;
+}
+function bindRecv(b){
+  const box = document.getElementById("bRecv"); if(!box) return;
+  const tgt = aid=>aid ? b.artists.find(a=>a.id===aid) : b;
+  box.addEventListener("click", e=>{
+    const c = e.target.closest("[data-rcv]"); if(!c || c.disabled) return;
+    const o = tgt(c.dataset.raid); if(!o) return;
+    const k = c.dataset.rcv, rv = new Set(o.recv || []);
+    if(rv.has(k)) rv.delete(k); else rv.add(k);
+    o.recv = RECV.map(x=>x[0]).filter(x=>rv.has(x)); save();
+    box.outerHTML = recvBox(b); bindRecv(b);
+    if(k === "custom" && rv.has(k)){ const i = document.querySelector(`#bRecv [data-rmemo="${c.dataset.raid}"]`); if(i) i.focus(); }
+  });
+  box.addEventListener("input", e=>{
+    const t = e.target; if(t.dataset.rmemo == null) return;
+    const o = tgt(t.dataset.rmemo); if(!o) return;
+    if(t.dataset.rmemo) o.memo = t.value.slice(0,200); else o.rmemo = t.value.slice(0,200);
+    save();
+  });
+}
 function rangeText(a, b){ return a && b ? `${a}~${b}` : a ? `${a}~` : b ? `~${b}` : ""; }
 function normRange(v){
   v = str(v||"").trim(); if(!v) return {from:"", to:""};
@@ -1838,6 +1895,7 @@ function renderCheckList(){
     const fin = items.filter(i=>!i.maybe && isFinal(i)).length, cntAll = items.filter(i=>!i.maybe).length;
     blocks.push(`<div class="cgroup">
       <button class="chead" data-act="open" data-id="${b.id}"><span class="mini" style="--sc:${secColor(b.section)}">${esc(boothCode(b))}</span><span class="nm">${b.isFriend?'<span style="color:#C99A00">♥ </span>':""}${b.name?esc(b.name):"이름 없는 부스"}</span>${dlChip(b)}<span class="cnt">${cntAll ? `${fin}/${cntAll}` : "고민중"}</span></button>
+      ${(()=>{ const r = recvText(b); return r ? `<div class="crcv"><span>수령</span>${esc(r)}</div>` : ""; })()}
       ${items.map(L=>itemRow(b,L)).join("")}${hidN ? `<div class="hidnote">숨긴 작가 물품 ${hidN}개</div>` : ""}
     </div>`);
   }
@@ -1988,7 +2046,7 @@ function renderInfo(){
         <label class="checkline"><input type="checkbox" id="shItems"><span>구매 리스트<small>담은 물품과 수량, 꼭 사기·고민중 표시</small></span></label>
         <label class="checkline sub"><input type="checkbox" id="shSt" disabled><span>구매 체크 상태도<small>입금·수령·구매 완료 체크</small></span></label>
         <label class="checkline"><input type="checkbox" id="shPeople"><span>지인<small>지인 탭, 부스의 지인 표시</small></span></label>
-        <label class="checkline"><input type="checkbox" id="shMemo"><span>내 메모·태그<small>부스 메모, 작가 메모, 태그</small></span></label>
+        <label class="checkline"><input type="checkbox" id="shMemo"><span>내 메모·태그<small>부스 메모, 태그</small></span></label>
       </div>
       <div class="btnrow"><button class="btn pre" data-act="mkcode">공유 코드 만들기</button><button class="btn ghost" data-act="mktext">글로 만들기</button></div>
       <div id="codeOut"></div>
@@ -2389,7 +2447,7 @@ function exportData(o){
     if(!o.items) b.items = [];
     else if(!o.status) b.items.forEach(i=>{ i.st = 0; });
     if(!o.people){ b.isFriend = false; b.friends = []; }
-    if(!o.memo){ b.memo = ""; b.pmemo = ""; b.tags = []; b.artists.forEach(a=>{ a.memo = ""; a.hidden = false; }); }
+    if(!o.memo){ b.memo = ""; b.pmemo = ""; b.tags = []; b.artists.forEach(a=>{ a.hidden = false; }); }
   }
   if(!o.people) d.people = [];
   return {app:"boothcheck", v:1, d};
@@ -2452,6 +2510,7 @@ function makeText(o){
     }
     for(const a of b.artists) L.push(`  작가: ${a.nick || "-"}${a.site ? " " + a.site : ""}${a.info ? "  인포: " + a.info : ""}${periodOf(a) ? "  " + kindWord(a) + ": " + periodText(periodOf(a)) + (a.preLink ? " " + a.preLink : "") : ""}${(a.imgs||[]).length ? "  인포 이미지: " + a.imgs.join(" ") : ""}`);
     if(o.people && b.isFriend) L.push("  지인: " + (b.friends.length ? b.friends.join(", ") : "♥"));
+    { const r = recvText(b); if(r) L.push("  수령 방법: " + r); }
     if(b.openFrom || b.openTo) L.push("  부스 운영: " + rangeText(b.openFrom, b.openTo));
     if(b.pickupFrom) L.push("  선입금 수령: " + rangeText(b.pickupFrom, b.pickup)); else if(b.pickup) L.push("  선입금 수령 마감: " + b.pickup);
     if(b.times.length) L.push("  시간: " + b.times.slice().sort((x,y)=>(x.time||x.end||"99").localeCompare(y.time||y.end||"99")).map(x=>`${rangeText(x.time, x.end)||"--:--"} ${x.label}`).join(", "));
@@ -2543,6 +2602,7 @@ function renderBoothSheet(){
             ${hasOpen ? `<div class="trow open"><span class="tl">부스 운영</span><b>${rangeText(b.openFrom, b.openTo)}</b>${chip(b.openFrom, b.openTo)}</div>` : ""}
             ${hasPick ? `<div class="trow pick"><span class="tl">${b.pickupFrom ? "선입금 수령" : "선입금 수령 마감"}</span><b>${b.pickupFrom ? rangeText(b.pickupFrom, b.pickup) : b.pickup}</b>${pickChip()}</div>` : ""}
             ${others.map(x=>`<div class="trow"><span class="tl">${esc(x.label || "시간")}</span><b>${rangeText(x.time, x.end) || "--:--"}</b>${x.end ? chip(x.time, x.end) : chip("", x.time)}</div>`).join("")}</div>`; })()}
+        ${recvBox(b)}
       </div>
       <div class="sums" id="bSums"></div>
       <div class="addhead"><h4>구매 리스트</h4><span id="bCount" class="hc"></span><button class="btn ghost sm" data-act="wfOpen">윗치폼</button><button class="btn ghost sm" data-act="toggleAdd" id="addTog">${UIP.addOpen ? "접기" : "+ 추가"}</button></div>
@@ -2578,6 +2638,7 @@ function renderBoothSheet(){
   if(memo) memo.addEventListener("input", ()=>{ b.memo = memo.value; save(); });
   const pmemo = document.getElementById("bPMemo");
   if(pmemo) pmemo.addEventListener("input", ()=>{ b.pmemo = pmemo.value; save(); });
+  bindRecv(b);
   document.getElementById("bItems").addEventListener("input", e=>{
     const t = e.target; if(t.dataset.amemo == null) return;
     const a = b.artists.find(x=>x.id===t.dataset.amemo); if(a){ a.memo = t.value.slice(0,200); save(); }
@@ -2628,7 +2689,7 @@ function renderBoothItems(){
         return;
       }
       const ap = periodOf(a), aps = ap ? periodState(ap, artistPaid(b, a)) : null;
-      html += `<div class="agbox" data-aid="${a.id}"><div class="agrp" data-aid="${a.id}" data-bid="${b.id}"><span class="an">${nm}</span>${aps && aps.cls !== "late" ? `<span class="dl ${aps.cls}" title="${esc(kindWord(ap) + " " + periodText(ap))}">${esc(ap.kind === "survey" ? aps.text : stripKind(aps.text))}</span>` : ""}<input class="amemo" data-amemo="${a.id}" value="${esc(a.memo||"")}" placeholder="메모"></div>`
+      html += `<div class="agbox" data-aid="${a.id}"><div class="agrp" data-aid="${a.id}" data-bid="${b.id}"><span class="an">${nm}</span>${aps && aps.cls !== "late" ? `<span class="dl ${aps.cls}" title="${esc(kindWord(ap) + " " + periodText(ap))}">${esc(ap.kind === "survey" ? aps.text : stripKind(aps.text))}</span>` : ""}</div>`
         + (its.length ? rows(its) : `<div class="aempty">이 작가로 지정한 물품이 없어요</div>`) + `</div>`;
     });
   } else html = rows(b.items);
@@ -2646,7 +2707,7 @@ function renderBoothForm(){
   const isNew = !sh.id;
   const b = isNew ? {section: secFilter!=="all" ? secFilter : (S.sections[0]||""), num:"", half:0, span:1, name:"", artists:[], pickup:"", pickupFrom:"", openFrom:"", openTo:"", times:[], isFriend:false, friends:[], preFrom:"", preTo:"", preToTime:"", memo:"", tags: tagFilter ? [tagFilter] : []} : findBooth(sh.id);
   if(!b){ closeSheet(); return; }
-  const draft = sh.draft || (sh.draft = {section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, artists:(b.artists||[]).map(a=>({...a, imgs:[...(a.imgs||[])]})), pickup:b.pickup||"", pickupFrom:b.pickupFrom||"", openFrom:b.openFrom||"", openTo:b.openTo||"", times:(b.times||[]).map(x=>({end:"", ...x})), isFriend:!!b.isFriend, friendsText:(b.friends||[]).join(", "), preFrom:b.preFrom||"", preTo:b.preTo||"", preToTime:b.preToTime||"", memo:b.memo, tags:[...(b.tags||[])]});
+  const draft = sh.draft || (sh.draft = {section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, artists:(b.artists||[]).map(a=>({...a, recv:[...(a.recv||[])], imgs:[...(a.imgs||[])]})), pickup:b.pickup||"", pickupFrom:b.pickupFrom||"", openFrom:b.openFrom||"", openTo:b.openTo||"", times:(b.times||[]).map(x=>({end:"", ...x})), isFriend:!!b.isFriend, friendsText:(b.friends||[]).join(", "), preFrom:b.preFrom||"", preTo:b.preTo||"", preToTime:b.preToTime||"", memo:b.memo, tags:[...(b.tags||[])]});
   sheet.innerHTML = `
     <div class="sh-grab" id="grab"><div class="handle"></div>
       <div class="sh-head sh-plain">
@@ -2746,7 +2807,9 @@ function renderBoothForm(){
       <button type="button" class="iconbtn danger" data-akdel="${k}" aria-label="작가 지우기">${ICON_TRASH}</button>
       <input class="inp wide" data-ak="${k}" data-af="site" value="${esc(a.site)}" placeholder="사이트 (트위터 주소 또는 @아이디)" autocapitalize="off" spellcheck="false">
       <input class="inp wide" data-ak="${k}" data-af="info" value="${esc(a.info)}" placeholder="이 작가의 인포 링크 (선택)" autocapitalize="off" spellcheck="false">
-      <input class="inp wide" data-ak="${k}" data-af="memo" value="${esc(a.memo||"")}" placeholder="메모">
+      <div class="wide" style="font-size:12px;font-weight:700;color:var(--muted);margin-top:2px">수령 방법 (여러 개 가능)</div>
+      <div class="wide rchips">${RECV.map(([rk,rl])=>`<button type="button" class="rchip" data-rk="${k}" data-rv="${rk}" aria-pressed="${(a.recv||[]).includes(rk)}">${rl}</button>`).join("")}</div>
+      ${(a.recv||[]).includes("custom") ? `<input class="inp wide" data-ak="${k}" data-af="memo" value="${esc(a.memo||"")}" placeholder="수령 방법 직접 적기" maxlength="200">` : ""}
       <div class="wide" style="font-size:12px;font-weight:700;color:var(--muted);margin-top:2px">인포 이미지 링크 (붙여 넣고 엔터, 여러 개 가능)</div>
       <div class="imged wide">${(a.imgs||[]).map((u,j)=>`<span class="imgchip"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add('bad')"><button type="button" data-akimgdel="${k}:${j}" aria-label="이미지 빼기">×</button></span>`).join("")}<input data-ak="${k}" data-af="imgIn" value="${esc(a.imgIn||"")}" placeholder="https://… 이미지 주소" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>
       <div class="wide kindrow"><span>기간 종류</span><div class="pick kindpick">${[["","선입금"],["survey","수요조사"]].map(([v,l])=>`<button type="button" data-kk="${k}" data-kind="${v}" aria-pressed="${(a.preKind||"")===v}">${l}</button>`).join("")}</div></div>
@@ -2773,11 +2836,14 @@ function renderBoothForm(){
     if(parseUrls(text).length){ e.preventDefault(); addImgs(+t.dataset.ak, (t.value + " " + text)); }
   });
   fArt.addEventListener("click", e=>{
+    const rc = e.target.closest("[data-rk]");
+    if(rc){ const a = draft.artists[+rc.dataset.rk], rv = new Set(a.recv || []), k = rc.dataset.rv; if(rv.has(k)) rv.delete(k); else rv.add(k); a.recv = RECV.map(x=>x[0]).filter(x=>rv.has(x)); drawArtists();
+      if(k === "custom" && rv.has(k)){ const i = fArt.querySelector(`[data-ak="${rc.dataset.rk}"][data-af="memo"]`); if(i) i.focus(); } return; }
     const kb = e.target.closest("[data-kind]");
     if(kb && !kb.disabled){ draft.artists[+kb.dataset.kk].preKind = kb.dataset.kind; drawArtists(); return; }
     const di = e.target.closest("[data-akimgdel]");
     if(di){ const [k,j] = di.dataset.akimgdel.split(":").map(Number); draft.artists[k].imgs.splice(j,1); drawArtists(); return; } const d = e.target.closest("[data-akdel]"); if(d){ draft.artists.splice(+d.dataset.akdel,1); drawArtists(); } });
-  document.getElementById("fArtAdd").addEventListener("click", ()=>{ draft.artists.push({id:uid(), nick:"", site:"", info:"", memo:"", preFrom:"", preTo:"", preToTime:"", imgs:[]}); drawArtists(); const ins = fArt.querySelectorAll('[data-af="nick"]'); if(ins.length) ins[ins.length-1].focus(); });
+  document.getElementById("fArtAdd").addEventListener("click", ()=>{ draft.artists.push({id:uid(), nick:"", site:"", info:"", memo:"", recv:[], preFrom:"", preTo:"", preToTime:"", imgs:[]}); drawArtists(); const ins = fArt.querySelectorAll('[data-af="nick"]'); if(ins.length) ins[ins.length-1].focus(); });
   drawArtists();
   const frTog = document.getElementById("fFrTog"), frIn = document.getElementById("fFr");
   frTog.addEventListener("click", ()=>{ draft.isFriend = !draft.isFriend; frTog.setAttribute("aria-pressed", String(draft.isFriend)); if(draft.isFriend) frIn.focus(); });
@@ -3830,15 +3896,15 @@ function lockedBooth(b){ const s = srcSets(); return !!(s && b && s.booths.has(b
 function lockedItem(i){ const s = srcSets(); return !!(s && i && s.items.has(i.id)); }
 function isBlank(st){ return !st.event.name && !st.booths.length && !st.people.length && !st.event.schedule.length; }
 
-/* 공유되는 부분만 뽑기: 행사 정보·구역·종류·배치도·부스·작가·태그·부스 메모·무료 배포 물품. 나머지 구매 리스트·지인·작가 메모는 빠짐 */
+/* 공유되는 부분만 뽑기: 행사 정보·구역·종류·배치도·부스·작가·태그·부스 메모·무료 배포 물품. 수령 방법도 포함. 나머지 구매 리스트·지인은 빠짐 */
 function clone(o){ return o == null ? o : JSON.parse(JSON.stringify(o)); }
 function eqJ(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
 function shareProj(st){
   const e = st.event;
   return {event:{name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, schedule:clone(e.schedule)},
     sections:[...st.sections], cats:[...st.cats], halls:clone(st.halls), marks:clone(st.marks),
-    booths:st.booths.map(b=>({id:b.id, section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, memo:b.memo||"", tags:[...(b.tags||[])], pickup:b.pickup||"", pickupFrom:b.pickupFrom||"", openFrom:b.openFrom||"", openTo:b.openTo||"", times:clone(b.times||[]), pos:clone(b.pos||null),
-      artists:(b.artists||[]).map(a=>({id:a.id, nick:a.nick||"", site:a.site||"", info:a.info||"", preFrom:a.preFrom||"", preTo:a.preTo||"", preToTime:a.preToTime||"", preLink:a.preLink||"", preKind:a.preKind==="survey" ? "survey" : "", imgs:[...(a.imgs||[])]})),
+    booths:st.booths.map(b=>({id:b.id, section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, memo:b.memo||"", tags:[...(b.tags||[])], recv:[...(b.recv||[])], rmemo:b.rmemo||"", pickup:b.pickup||"", pickupFrom:b.pickupFrom||"", openFrom:b.openFrom||"", openTo:b.openTo||"", times:clone(b.times||[]), pos:clone(b.pos||null),
+      artists:(b.artists||[]).map(a=>({id:a.id, nick:a.nick||"", site:a.site||"", info:a.info||"", recv:[...(a.recv||[])], memo:a.memo||"", preFrom:a.preFrom||"", preTo:a.preTo||"", preToTime:a.preToTime||"", preLink:a.preLink||"", preKind:a.preKind==="survey" ? "survey" : "", imgs:[...(a.imgs||[])]})),
       items:(b.items||[]).filter(i=>i.type === "free").map(i=>({id:i.id, name:i.name, price:0, type:"free", cat:i.cat||"", artist:i.artist||"", sample:i.sample||""}))}))};
 }
 function sanitizeProj(p){
@@ -3848,6 +3914,8 @@ function sanitizeProj(p){
   const out = shareProj(st);
   if(!p.booths.some(b=>b && typeof b === "object" && ("memo" in b || "tags" in b))) out.booths.forEach(b=>{ delete b.memo; delete b.tags; });
   if(!p.booths.some(b=>b && typeof b === "object" && Array.isArray(b.items))) out.booths.forEach(b=>{ delete b.items; });
+  /* 예전 버전 공유본(수령 방법 없음)이면 받는 쪽 값을 그대로 둠 */
+  if(!p.booths.some(b=>b && typeof b === "object" && ("recv" in b || (Array.isArray(b.artists) && b.artists.some(a=>a && typeof a === "object" && "recv" in a))))) out.booths.forEach(b=>{ delete b.recv; delete b.rmemo; b.artists.forEach(a=>{ delete a.recv; delete a.memo; }); });
   return out;
 }
 function itemPersonal(i){ return !!(i && (i.st > 0 || String(i.note || "").trim() || i.must)); }
@@ -3877,9 +3945,15 @@ function applyShared(st, P, prev, keepLocal){
     const pv0 = pb.get(r.id);
     if("memo" in r){ if(keepLocal && l && String(l.memo||"").trim() && !String(l.pmemo||"").trim() && !(pv0 && "memo" in pv0) && l.memo !== r.memo) b.pmemo = l.memo; b.memo = r.memo; }
     if("tags" in r) b.tags = [...r.tags];
+    if("recv" in r){ b.recv = [...r.recv]; b.rmemo = r.rmemo || ""; }
     Object.assign(b, {section:r.section, num:r.num, half:r.half, span:r.span, size:r.half ? 1 : 2*r.span, name:r.name, pickup:r.pickup, pickupFrom:r.pickupFrom||"", openFrom:r.openFrom||"", openTo:r.openTo||"", times:clone(r.times), pos:clone(r.pos)});
     const la = new Map((b.artists||[]).map(a=>[a.id, a]));
-    b.artists = r.artists.map(ra=>Object.assign(la.get(ra.id) || {memo:"", hidden:false}, clone(ra)));
+    if(keepLocal && !(pv0 && Array.isArray(pv0.artists) && pv0.artists.some(x=>"recv" in x))){
+      /* 처음 수령 방법을 받을 때, 내가 적어 둔 작가 메모가 덮이지 않게 ‘내 메모’로 옮김 */
+      const keep = r.artists.filter(ra=>"memo" in ra).map(ra=>{ const l = la.get(ra.id); return l && String(l.memo||"").trim() && l.memo !== ra.memo ? `${l.nick || "작가"}: ${l.memo.trim()}` : ""; }).filter(x=>x && !String(b.pmemo||"").includes(x));
+      if(keep.length) b.pmemo = [String(b.pmemo||"").trim(), ...keep].filter(Boolean).join("\n").slice(0,2000);
+    }
+    b.artists = r.artists.map(ra=>Object.assign(la.get(ra.id) || {memo:"", recv:[], hidden:false}, clone(ra)));
     const pv = pb.get(r.id);
     if(!Array.isArray(b.items)) b.items = [];
     if(Array.isArray(r.items)){
@@ -4456,7 +4530,7 @@ function clLiveInner(){
   const busy = !!(CL.pubBusy[id] || CL.pubT[id]);
   const when = pi.upd ? fmtWhen(pi.upd) : "";
   if(!l) return `<h2>실시간 공유</h2>
-    <p class="desc">공유 코드를 한 번만 보내면, 내가 행사를 고칠 때마다 받은 사람에게 <b>자동으로 반영</b>돼요. 부스·작가·배치도·선입금 기간, 부스 태그·메모, <b>무료 배포 물품</b>이 공유돼요. 나머지 구매 리스트와 체크·지인·작가 메모는 각자 따로예요.</p>
+    <p class="desc">공유 코드를 한 번만 보내면, 내가 행사를 고칠 때마다 받은 사람에게 <b>자동으로 반영</b>돼요. 부스·작가·배치도·선입금 기간·수령 방법, 부스 태그·메모, <b>무료 배포 물품</b>이 공유돼요. 나머지 구매 리스트와 체크·지인은 각자 따로예요.</p>
     <button class="btn pre block" data-act="clShare">${CL.user ? "실시간 공유 시작" : "로그인하고 시작하기"}</button>
     <p class="desc" style="margin:10px 0 0">받은 코드(BCL-…, BCE-…)는 아래 ‘불러오기’에 붙여 넣으세요.</p>`;
   if(l.role === "sub") return `<h2>구독 중</h2>
@@ -4509,9 +4583,9 @@ function clRefreshUI(){
 }
 function lockBoothForm(){
   const body = sheet.querySelector(".sh-body"); if(!body) return;
-  body.insertAdjacentHTML("afterbegin", `<p class="lknote">구독한 행사의 원본 부스예요. 지인과 작가 메모만 바꿀 수 있어요. 나만 보는 메모는 부스 화면의 ‘내 메모’에 적어 주세요.</p>`);
+  body.insertAdjacentHTML("afterbegin", `<p class="lknote">구독한 행사의 원본 부스예요. 지인만 바꿀 수 있어요. 나만 보는 메모는 부스 화면의 ‘내 메모’에 적어 주세요.</p>`);
   ["#fSec button", "#fNum", "#fSize button", "#fName", "#fHours input", "#fTimes input", "#fTimes button", "#fArtAdd", "#fTags input", "#fMemo", "#fArtists [data-kind]"].forEach(q=>body.querySelectorAll(q).forEach(el=>{ el.disabled = true; }));
-  body.querySelectorAll("#fArtists input").forEach(el=>{ if(el.dataset.af !== "memo") el.disabled = true; });
+  body.querySelectorAll("#fArtists input, #fArtists [data-rk]").forEach(el=>{ el.disabled = true; });
   body.querySelectorAll("#fArtists [data-akdel], #fArtists [data-akimgdel], #fArtists [data-af=imgIn], #fTimeSug, #fTagSug, #fTags [data-tgrm], [data-act=delBooth]").forEach(el=>{ el.style.display = "none"; });
 }
 function lockItemForm(){
@@ -4748,14 +4822,14 @@ document.addEventListener("click", async e=>{
         const nick = (a.nick||"").trim(), site = normSite(a.site), info = normLink(a.info);
         if(site === null){ toast(`‘${nick || "작가"}’ 사이트 주소를 확인해 주세요 (https:// 또는 @아이디)`); return; }
         if(info === null){ toast(`‘${nick || "작가"}’ 인포 링크를 https://로 시작하게 적어 주세요`); return; }
-        const amemo = (a.memo||"").trim().slice(0,200);
+        const amemo = (a.memo||"").trim().slice(0,200), arecv = normRecv(a.recv, "");
         const apf = validDate(a.preFrom), apt = validDate(a.preTo), aptt = (a.preToTime||"").trim() ? normTime(a.preToTime) : "";
         if(aptt === null){ toast(`‘${nick || "작가"}’ 마감 시각을 23:59처럼 적어 주세요`); return; }
         if(apf && apt && apf > apt){ toast(`‘${nick || "작가"}’ 시작일이 마감일보다 늦어요`); return; }
         const plk = (a.preLink||"").trim() ? normLink(a.preLink) : "";
         if(plk === null){ toast(`‘${nick || "작가"}’ 폼 링크를 https://로 시작하게 적어 주세요`); return; }
         const imgs = [...new Set([...(a.imgs||[]), ...parseUrls(a.imgIn)])].slice(0,12);
-        if(nick || site || info || amemo || apf || apt || plk || imgs.length) artists.push({id:a.id || uid(), nick, site, info, memo:amemo, preFrom:apf, preTo:apt, preToTime:aptt, preLink:plk, preKind:a.preKind==="survey" ? "survey" : "", hidden:!!a.hidden, imgs});
+        if(nick || site || info || amemo || arecv.length || apf || apt || plk || imgs.length) artists.push({id:a.id || uid(), nick, site, info, memo:amemo, recv:arecv, preFrom:apf, preTo:apt, preToTime:aptt, preLink:plk, preKind:a.preKind==="survey" ? "survey" : "", hidden:!!a.hidden, imgs});
       }
       const fields = {section:d.section, num:d.num, half:d.half, span:d.half ? 1 : (d.span||1), size:d.half ? 1 : 2*(d.span||1), name:d.name.trim(), artists, pickup:pk, pickupFrom:hv.pickupFrom, openFrom:hv.openFrom, openTo:hv.openTo, times, isFriend:!!(d.isFriend || (d.friendsText||"").trim()), friends:[...new Set((d.friendsText||"").split(/[,，、]/).map(x=>x.trim().slice(0,30)).filter(Boolean))], memo:d.memo, tags:[...d.tags]};
       if(sh.id && !findBooth(sh.id)){ toast("다른 곳에서 지워진 부스예요"); closeSheet(); return; }
