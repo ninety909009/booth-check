@@ -1,8 +1,9 @@
 /* 부스 체크 오프라인용 서비스 워커
    - 앱 파일(index.html 등): 인터넷이 되면 새 버전을 받고, 안 되거나 2.5초 넘게 걸리면 저장해 둔 것으로 열어요.
    - Firebase SDK·글꼴: 한 번 받아 두면 저장본을 써요.
+   - firebase-config.js: 항상 인터넷에서 새로 받아요. 인터넷이 아예 안 될 때만 저장본을 써요.
    - 데이터 통신(로그인·동기화)은 건드리지 않아요. */
-const VER = "bc-v1";
+const VER = "bc-v2";
 const CORE = ["./", "./index.html", "./firebase-config.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", e=>{
@@ -29,6 +30,12 @@ function networkFirst(req){
     });
   });
 }
+function configFirst(req){
+  return fetch(req, {cache:"no-cache"}).then(res=>{
+    if(res && res.ok){ const copy = res.clone(); caches.open(VER).then(c=>c.put(req, copy)); }
+    return res;
+  }).catch(()=>fromCache(req).then(m=>m || Response.error()));
+}
 function cacheFirst(req){
   return caches.match(req).then(m=>m || fetch(req).then(res=>{
     if(res && (res.ok || res.type === "opaque")){ const copy = res.clone(); caches.open(VER).then(c=>c.put(req, copy)); }
@@ -39,7 +46,7 @@ self.addEventListener("fetch", e=>{
   const req = e.request;
   if(req.method !== "GET") return;
   const u = new URL(req.url);
-  if(u.origin === self.location.origin){ e.respondWith(networkFirst(req)); return; }
+  if(u.origin === self.location.origin){ e.respondWith(/firebase-config\.js$/.test(u.pathname) ? configFirst(req) : networkFirst(req)); return; }
   if((u.hostname === "www.gstatic.com" && u.pathname.startsWith("/firebasejs/")) || u.hostname === "fonts.googleapis.com" || u.hostname === "fonts.gstatic.com"){
     e.respondWith(cacheFirst(req));
   }
