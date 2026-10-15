@@ -404,6 +404,15 @@ select.inp{appearance:none;-webkit-appearance:none;padding-right:30px;background
 .fhint{margin:-2px 0 10px;font-size:12px;color:var(--muted)}
 #fHours{padding-bottom:4px;margin-bottom:8px;border-bottom:1px dashed var(--line)}
 .trow.open .tl{color:var(--on);font-weight:700}
+.agrp .rtags{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:4px}
+.agrp .rtags i{font-style:normal;font-size:11.5px;font-weight:700;color:var(--pre);background:var(--pre-soft);border-radius:999px;padding:2px 8px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.agrp .rcvbtn{flex:none;height:26px!important;min-height:0!important;width:auto!important;min-width:30px;line-height:1;padding:0 8px!important;margin:0!important;border:1px solid var(--line);border-radius:13px;background:var(--card);color:var(--muted);font-size:12px;font-weight:700}
+.agrp .rcvbtn.empty{border-style:dashed}
+.agrp .rcvbtn[aria-expanded="true"]{border-color:var(--pre);color:var(--pre)}
+.rbarbox{border-bottom:1px solid var(--line)}
+.agrp.rbar{border-top:0}
+.rcved{padding:8px 12px 10px;background:var(--paper);border-top:1px dashed var(--line)}
+.rcved .rmemo{margin-top:8px;height:40px;width:100%}
 .recvbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:12px}
 .recvbox .rh{font-size:14px;font-weight:700;margin-bottom:8px;display:flex;align-items:baseline;gap:8px}
 .recvbox .rh small{font-size:12px;font-weight:500;color:var(--muted)}
@@ -720,8 +729,14 @@ a.anick{background:var(--pre-soft);color:var(--pre)}
 .vfrow .pick button{flex:1;height:42px;padding:0 6px;font-size:14px}
 .vflist{border-top:1px solid var(--line);margin-top:4px}
 .vfi{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);font-size:14px}
+.vfi .vfe{flex:1;min-width:0;width:auto;height:auto;display:flex;align-items:center;gap:8px;border:0;background:none;padding:2px 0;text-align:left;color:var(--text);font-size:14px;border-radius:6px}
 .vfi span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700}
 .vfi small{flex:none;color:var(--muted)}
+.vfi.on{background:var(--pre-soft);box-shadow:inset 3px 0 0 var(--pre)}
+.vfi.on .vfe{padding-left:8px}
+.vfhint{font-size:12px;color:var(--muted);padding:6px 2px 2px}
+.vfhint .vfcancel{width:auto;height:auto;border:0;background:none;color:var(--pre);font-weight:700;padding:0;font-size:12px;text-decoration:underline}
+#vForm.editing #vfAdd{background:var(--on);border-color:var(--on)}
 .vfi .vfmay{width:auto;height:28px;padding:0 9px;border-radius:14px;border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:12px;font-weight:700}
 .vfi .vfmay[aria-pressed="true"]{background:#FFE58A;border-color:#E8B400;color:#5C4300}
 .vfi.may span{color:var(--muted)}
@@ -1275,8 +1290,16 @@ function startWrite(){
     <div class="vfrow"><div class="pick" id="vfType">${[["pre","선입금"],["on","현장"],["free","무료"]].map(([t,l])=>`<button type="button" class="${t}" data-type="${t}" aria-pressed="${vfType===t}">${l}</button>`).join("")}</div><button type="button" class="btn pre" id="vfAdd" style="padding:0 18px">추가</button></div>
     <div class="vflist" id="vfList"></div>`;
   const nm = document.getElementById("vfName"), pr = document.getElementById("vfPrice"), q = document.getElementById("vfQty");
+  VW.edit = null;
   const add = ()=>{
     const name = nm.value.trim(); if(!name){ nm.focus(); toast("물품 이름을 적어 주세요"); return; }
+    const ed = VW.edit && b.items.find(x=>x.id===VW.edit);
+    if(ed){
+      const want = Math.max(1, parseInt(q.value,10)||1), cap = vfType==="pre" ? 2 : 1;
+      if(!lockedItem(ed)) Object.assign(ed, {name:name.slice(0,60), price: vfType==="free" ? 0 : parsePrice(pr.value), type:vfType});
+      Object.assign(ed, {want, maybe:vfMaybe, st:Math.min(cap, ed.st)}); if(ed.maybe) ed.must = false;
+      save(); renderTop(); toast(`‘${ed.name}’을 고쳤어요`); vfEditEnd(); return;
+    }
     b.items.push({id:uid(), name:name.slice(0,60), price: vfType==="free" ? 0 : parsePrice(pr.value), want:Math.max(1, parseInt(q.value,10)||1), type:vfType, st:0, must:false, maybe:vfMaybe, note:"", cat:lastCat, sample:"", artist: VW.aid || soleArtist(b) || ""});
     save(); renderTop(); nm.value = ""; pr.value = ""; q.value = ""; drawWriteList(); nm.focus();
   };
@@ -1291,22 +1314,47 @@ function startWrite(){
     pr.placeholder = vfType==="free" ? "무료" : "가격(원)";
   });
   document.getElementById("vfList").addEventListener("click", e=>{
+    const ev = e.target.closest("[data-vfedit]");
+    if(ev){
+      const it = b.items.find(x=>x.id===ev.dataset.vfedit); if(!it) return;
+      if(VW.edit === it.id){ vfEditEnd(); return; }
+      VW.edit = it.id; nm.value = it.name; pr.value = it.type==="free" ? "" : String(it.price || ""); q.value = it.want > 1 ? String(it.want) : "";
+      vfType = it.type; vfMaybe = !!it.maybe;
+      document.querySelectorAll("#vfType button").forEach(x=>x.setAttribute("aria-pressed", String(x.dataset.type===vfType)));
+      document.getElementById("vfMaybe").setAttribute("aria-pressed", String(vfMaybe));
+      pr.placeholder = vfType==="free" ? "무료" : "가격(원)";
+      const lk = lockedItem(it); nm.disabled = lk; pr.disabled = lk; document.querySelectorAll("#vfType button").forEach(x=>{ x.disabled = lk; });
+      document.getElementById("vfAdd").textContent = "수정";
+      document.getElementById("vForm").classList.add("editing");
+      drawWriteList(); (lk ? q : nm).focus(); return;
+    }
     const m = e.target.closest("[data-vfmay]");
     if(m){ const it = b.items.find(x=>x.id===m.dataset.vfmay); if(it){ it.maybe = !it.maybe; if(it.maybe) it.must = false; save(); renderTop(); drawWriteList(); } return; }
     const d = e.target.closest("[data-vfdel]"); if(!d) return;
     const it = b.items.find(x=>x.id===d.dataset.vfdel); if(!it) return;
+    if(VW.edit === it.id) vfEditEnd();
     b.items = b.items.filter(x=>x!==it); save(); renderTop(); drawWriteList(); toast(`‘${it.name}’을 지웠어요`);
   });
   drawWriteList();
   if(window.matchMedia("(pointer:fine)").matches) setTimeout(()=>nm.focus(), 50);
+}
+function vfEditEnd(){
+  VW.edit = null;
+  const f = document.getElementById("vForm"); if(!f) return;
+  f.classList.remove("editing");
+  ["vfName","vfPrice","vfQty"].forEach(id=>{ const el = document.getElementById(id); if(el){ el.value = ""; el.disabled = false; } });
+  document.querySelectorAll("#vfType button").forEach(x=>{ x.disabled = false; });
+  const a = document.getElementById("vfAdd"); if(a) a.textContent = "추가";
+  drawWriteList(); const n = document.getElementById("vfName"); if(n) n.focus();
 }
 function drawWriteList(){
   const b = findBooth(VW.bid), el = document.getElementById("vfList"); if(!b || !el) return;
   const mine = b.items.filter(i=> VW.aid && b.artists.length > 1 ? i.artist === VW.aid : true);
   const sum = mine.reduce((n,i)=>n + (i.maybe ? 0 : amt(mkLine(b, i, null))), 0);
   document.getElementById("vfSum").textContent = mine.length ? `${mine.length}개 · ${won(sum)}` : "";
-  el.innerHTML = mine.length ? mine.slice().reverse().map(i=>`<div class="vfi${i.maybe ? " may" : ""}"><span>${esc(i.name)}</span><small>${typeLabel(i)} · ${i.type==="free" ? "무료" : won(i.price)}${i.want>1 ? " × " + i.want : ""}</small><button type="button" class="vfmay" data-vfmay="${i.id}" aria-pressed="${!!i.maybe}" aria-label="${esc(i.name)} 고민중 표시">고민</button>${lockedItem(i) ? "" : `<button type="button" data-vfdel="${i.id}" aria-label="${esc(i.name)} 지우기">×</button>`}</div>`).join("")
+  el.innerHTML = mine.length ? mine.slice().reverse().map(i=>`<div class="vfi${i.maybe ? " may" : ""}${VW.edit === i.id ? " on" : ""}"><button type="button" class="vfe" data-vfedit="${i.id}" aria-label="${esc(i.name)} 고치기"><span>${esc(i.name)}</span><small>${typeLabel(i)} · ${i.type==="free" ? "무료" : won(i.price)}${i.want>1 ? " × " + i.want : ""}</small></button><button type="button" class="vfmay" data-vfmay="${i.id}" aria-pressed="${!!i.maybe}" aria-label="${esc(i.name)} 고민중 표시">고민</button>${lockedItem(i) ? "" : `<button type="button" data-vfdel="${i.id}" aria-label="${esc(i.name)} 지우기">×</button>`}</div>`).join("")
     : `<div class="vfempty">이미지를 보면서 살 물품을 적고 ‘추가’를 누르세요. 이미지를 누르면 확대돼요.</div>`;
+  if(mine.length) el.insertAdjacentHTML("afterbegin", `<div class="vfhint">${VW.edit ? `고치는 중이에요. 다 고치면 ‘수정’, 그만두려면 <button type="button" class="vfcancel" data-vfedit="${VW.edit}">취소</button>` : "물품을 누르면 고칠 수 있어요"}</div>`);
 }
 function stepViewer(d){ const n = VW.list.length; if(n < 2) return; VW.k = (VW.k + d + n) % n; showViewer(); }
 function frChip(b){ if(!b.isFriend) return ""; return (b.friends.length ? b.friends : ["지인"]).map(f=>`<span class="tag fr">♥ ${esc(f)}</span>`).join(""); }
@@ -1590,44 +1638,54 @@ function nowMin(){ const n = new Date(); return n.getHours()*60 + n.getMinutes()
 function hmMin(t){ const [h,m] = t.split(":").map(Number); return h*60 + m; }
 function fmtLeft(m){ return m >= 60 ? `${Math.floor(m/60)}시간${m%60 ? " " + m%60 + "분" : ""}` : `${m}분`; }
 /* ---------- 수령 방법 (실시간 공유됨, 구독자는 읽기 전용) ---------- */
-const RECV = [["name4","성함+번호 끝 4자리"],["wfqr","윗치폼 QR"],["tmmqr","TMM QR"],["custom","직접 작성"]];
+const RECV = [["name4","성함+번호 끝 4자리"],["idcard","신분증"],["wfqr","윗치폼 QR"],["tmmqr","TMM QR"],["custom","직접 작성"]];
+const RECV_SHORT = {name4:"성함+번호4", idcard:"신분증", wfqr:"윗치폼 QR", tmmqr:"TMM QR"};
 /* normalize()가 앱 시작 때(이 줄보다 먼저) 불리므로 위쪽 const를 쓰면 안 됨 */
 function normRecv(v, memo){
-  const ok = ["name4","wfqr","tmmqr","custom"];
+  const ok = ["name4","idcard","wfqr","tmmqr","custom"];
   if(Array.isArray(v)) return [...new Set(v.map(x=>str(x)).filter(x=>ok.includes(x)))];
   return str(memo||"").trim() ? ["custom"] : [];
 }
 function recvTargets(b){ const arts = b.artists.filter(a=>!a.hidden); return arts.length ? arts : (b.artists.length ? [] : [null]); }
-function recvLabels(o, memo){ return (o.recv||[]).map(k=> k === "custom" ? (String(memo||"").trim() || "직접 작성") : RECV.find(x=>x[0]===k)[1]); }
-function recvText(b){
+function recvLabels(o, memo, short){ return (o.recv||[]).map(k=> k === "custom" ? (String(memo||"").trim() || "직접 작성") : short ? RECV_SHORT[k] : (RECV.find(x=>x[0]===k) || ["", k])[1]).filter(Boolean); }
+function recvText(b, short){
   const tg = recvTargets(b), multi = tg.length > 1;
-  return tg.map(a=>{ const l = recvLabels(a || b, a ? a.memo : b.rmemo); return l.length ? (multi ? (a.nick || "작가") + ": " : "") + l.join(", ") : ""; }).filter(Boolean).join(" / ");
+  return tg.map(a=>{ const l = recvLabels(a || b, a ? a.memo : b.rmemo, short); return l.length ? (multi ? (a.nick || "작가") + ": " : "") + l.join(", ") : ""; }).filter(Boolean).join(" / ");
 }
-function recvBox(b){
-  const tg = recvTargets(b); if(!tg.length) return "";
-  const multi = tg.length > 1, ro = isSub() && lockedBooth(b);
-  if(ro && !tg.some(a=>((a || b).recv || []).length)) return "";
-  return `<div class="recvbox${ro ? " ro" : ""}" id="bRecv"><div class="rh">수령 방법<small>${ro ? "원본 정보" : "여러 개 고를 수 있어요"}</small></div>${tg.map(a=>{
-    const o = a || b, rv = o.recv || [], memo = a ? a.memo : b.rmemo, aid = a ? a.id : "";
-    return `<div class="rrow">${multi ? `<span class="rn">${esc(a.nick || "작가")}</span>` : ""}<div class="rchips">${RECV.map(([k,l])=>`<button type="button" class="rchip" data-rcv="${k}" data-raid="${aid}" aria-pressed="${rv.includes(k)}" ${ro ? "disabled" : ""}>${l}</button>`).join("")}</div>${rv.includes("custom") ? `<input class="inp rmemo" ${ro ? "disabled" : ""} data-rmemo="${aid}" value="${esc(memo||"")}" placeholder="수령 방법 직접 적기 (예: 트위터 닉네임 말하기)" maxlength="200">` : ""}</div>`; }).join("")}</div>`;
+let RCV_OPEN = {bid:"", key:null};
+/* 물품란 작가 닉네임 옆: 고른 수령 방법만 작게, ✎로 펼쳐서 고치기 */
+function rcvHead(b, a, ro){
+  const o = a || b, key = a ? a.id : "_b", open = RCV_OPEN.bid === b.id && RCV_OPEN.key === key;
+  const l = recvLabels(o, a ? a.memo : b.rmemo, true);
+  const tags = l.length ? `<span class="rtags">${l.map(x=>`<i>${esc(x.length > 24 ? x.slice(0,23) + "…" : x)}</i>`).join("")}</span>` : `<span class="rtags"></span>`;
+  const btn = ro ? "" : `<button type="button" class="rcvbtn${l.length ? "" : " empty"}" data-rcvedit="${key}" aria-expanded="${open}" aria-label="수령 방법 고르기">${l.length ? "✎" : "+ 수령 방법"}</button>`;
+  return tags + btn;
+}
+function rcvEditor(b, a){
+  const key = a ? a.id : "_b"; if(!(RCV_OPEN.bid === b.id && RCV_OPEN.key === key)) return "";
+  const o = a || b, rv = o.recv || [], memo = a ? a.memo : b.rmemo;
+  return `<div class="rcved"><div class="rchips">${RECV.map(([k,l])=>`<button type="button" class="rchip" data-rcv="${k}" data-raid="${key}" aria-pressed="${rv.includes(k)}">${l}</button>`).join("")}</div>${rv.includes("custom") ? `<input class="inp rmemo" data-rmemo="${key}" value="${esc(memo||"")}" placeholder="수령 방법 직접 적기 (예: 트위터 닉네임 말하기)" maxlength="200">` : ""}</div>`;
 }
 function bindRecv(b){
-  const box = document.getElementById("bRecv"); if(!box) return;
-  const tgt = aid=>aid ? b.artists.find(a=>a.id===aid) : b;
+  const box = document.getElementById("bItems"); if(!box) return;
+  const tgt = key=>key === "_b" ? b : b.artists.find(a=>a.id===key);
   box.addEventListener("click", e=>{
+    const ed = e.target.closest("[data-rcvedit]");
+    if(ed){ const k = ed.dataset.rcvedit, open = RCV_OPEN.bid === b.id && RCV_OPEN.key === k; RCV_OPEN = open ? {bid:"", key:null} : {bid:b.id, key:k}; renderBoothItems(); return; }
     const c = e.target.closest("[data-rcv]"); if(!c || c.disabled) return;
     const o = tgt(c.dataset.raid); if(!o) return;
     const k = c.dataset.rcv, rv = new Set(o.recv || []);
     if(rv.has(k)) rv.delete(k); else rv.add(k);
-    o.recv = RECV.map(x=>x[0]).filter(x=>rv.has(x)); save();
-    box.outerHTML = recvBox(b); bindRecv(b);
-    if(k === "custom" && rv.has(k)){ const i = document.querySelector(`#bRecv [data-rmemo="${c.dataset.raid}"]`); if(i) i.focus(); }
+    o.recv = RECV.map(x=>x[0]).filter(x=>rv.has(x)); save(); renderBoothItems();
+    if(k === "custom" && rv.has(k)){ const i = box.querySelector(`[data-rmemo="${c.dataset.raid}"]`); if(i) i.focus(); }
   });
   box.addEventListener("input", e=>{
     const t = e.target; if(t.dataset.rmemo == null) return;
     const o = tgt(t.dataset.rmemo); if(!o) return;
-    if(t.dataset.rmemo) o.memo = t.value.slice(0,200); else o.rmemo = t.value.slice(0,200);
+    if(t.dataset.rmemo === "_b") o.rmemo = t.value.slice(0,200); else o.memo = t.value.slice(0,200);
     save();
+    const h = t.closest(".agbox, .rbarbox"); const tg = h && h.querySelector(".rtags");
+    if(tg){ const a = t.dataset.rmemo === "_b" ? null : o; tg.outerHTML = rcvHead(b, a, false).replace(/<button[\s\S]*$/, ""); }
   });
 }
 function rangeText(a, b){ return a && b ? `${a}~${b}` : a ? `${a}~` : b ? `~${b}` : ""; }
@@ -1823,7 +1881,7 @@ function itemRow(b, x, o){
       <div class="iname">${L.must?'<span class="star">★ </span>':""}${esc(L.name || "이름 없는 물품")}</div>
       <div class="isub">${L.maybe?`<span class="imay">고민중</span>`:""}${L.forWho?`<span class="ifor">→ ${esc(L.forWho)}</span>`:""}${L.pay && L.type !== "free" ? `<span class="ipay ${L.pay}">${PAY_SHORT[L.pay]}</span>`:""}${an?`<span class="iart">${esc(an)}</span>`:""}${L.cat?`<span class="icat" style="${tagStyle(L.cat)}">${esc(L.cat)}</span>`:""}<span class="ist">${on ? `${typeLabel(L)} · ${o.step ? stLabel(L).split(" · ")[0] : stLabel(L)}` : typeLabel(L)}</span>${L.note?`<span class="inote">${esc(L.note)}</span>`:""}</div>
     </button>
-    <div class="iprice">${L.type==="free" ? "무료" : won(on ? amt(L) : L.price)}${on && want > 1 && !o.step ? `<small>${L.type==="free" ? "" : won(L.price) + " "}× ${want}</small>` : ""}${L.sample ? `<a class="smp" href="${esc(L.sample)}" target="_blank" rel="noopener noreferrer">샘플 ↗</a>` : ""}</div>
+    <div class="iprice">${L.type==="free" ? "무료" : won(on ? amt(L) : L.price)}${on && want > 1 && !o.step ? `<small>${L.type==="free" ? "" : won(L.price) + " "}× ${want}</small>` : ""}</div>
     ${o.step && on ? stepHTML(want) : ""}
   </div>`;
 }
@@ -1839,7 +1897,7 @@ function catRow(b, i, grip){
       <div class="cname">${i.must?'<span class="star">★ </span>':""}${esc(i.name || "이름 없는 물품")}</div>
       <div class="isub">${i.maybe?`<span class="imay">고민중</span>`:""}${i.cat?`<span class="icat" style="${tagStyle(i.cat)}">${esc(i.cat)}</span>`:""}<span class="ctype">${typeLabel(i)}</span>${i.note?`<span class="inote">${esc(i.note)}</span>`:""}</div>
     </button>
-    <div class="cside"><span class="cprice">${i.type==="free" ? "무료" : won(i.price)}</span>${i.sample ? `<a class="smp" href="${esc(i.sample)}" target="_blank" rel="noopener noreferrer">샘플 ↗</a>` : ""}</div>
+    <div class="cside"><span class="cprice">${i.type==="free" ? "무료" : won(i.price)}</span></div>
     ${subs.length ? (tot ? `<span class="subcnt">담음 ${tot}</span>` : "") : stepHTML(i.want)}
   </div>`;
   for(const x of subs) h += `<div class="crow sub ${i.type} ${x.want>0?"in":""}" data-bid="${b.id}" data-iid="${i.id}" data-sid="${x.id}">
@@ -1904,7 +1962,7 @@ function renderCheckList(){
     const fin = items.filter(i=>!i.maybe && isFinal(i)).length, cntAll = items.filter(i=>!i.maybe).length;
     blocks.push(`<div class="cgroup">
       <button class="chead" data-act="open" data-id="${b.id}"><span class="mini" style="--sc:${secColor(b.section)}">${esc(boothCode(b))}</span><span class="nm">${b.isFriend?'<span style="color:#C99A00">♥ </span>':""}${b.name?esc(b.name):"이름 없는 부스"}</span>${dlChip(b)}<span class="cnt">${cntAll ? `${fin}/${cntAll}` : "고민중"}</span></button>
-      ${(()=>{ const r = recvText(b); return r ? `<div class="crcv"><span>수령</span>${esc(r)}</div>` : ""; })()}
+      ${(()=>{ const r = recvText(b, true); return r ? `<div class="crcv"><span>수령</span>${esc(r)}</div>` : ""; })()}
       ${items.map(L=>itemRow(b,L)).join("")}${hidN ? `<div class="hidnote">숨긴 작가 물품 ${hidN}개</div>` : ""}
     </div>`);
   }
@@ -2516,7 +2574,7 @@ function makeText(o){
     L.push(`${boothCode(b)} ${b.name || "(이름 없음)"} · ${seatLabel(b)}${o.memo && b.tags.length ? "  " + b.tags.map(t=>"#"+t).join(" ") : ""}`);
     if(o.items) for(const i of linesOf(b)){
       const mark = includeSt ? (isFinal(i) ? "✅ " : (i.type==="pre" && i.st===1 ? "💸 " : "⬜ ")) : "- ";
-      L.push(`  ${mark}${i.must?"★":""}[${typeLabel(i)}]${i.cat?"["+i.cat+"]":""} ${i.name} ${i.type==="free" ? "무료" : won(i.price)}${i.qty>1?" ×"+i.qty:""}${i.note?" ("+i.note+")":""}${i.forWho?" (→ "+i.forWho+")":""}${i.maybe?" (고민중)":""}${i.sample?" 샘플: "+i.sample:""}`);
+      L.push(`  ${mark}${i.must?"★":""}[${typeLabel(i)}]${i.cat?"["+i.cat+"]":""} ${i.name} ${i.type==="free" ? "무료" : won(i.price)}${i.qty>1?" ×"+i.qty:""}${i.note?" ("+i.note+")":""}${i.forWho?" (→ "+i.forWho+")":""}${i.maybe?" (고민중)":""}`);
     }
     for(const a of b.artists) L.push(`  작가: ${a.nick || "-"}${a.site ? " " + a.site : ""}${a.info ? "  인포: " + a.info : ""}${periodOf(a) ? "  " + kindWord(a) + ": " + periodText(periodOf(a)) + (a.preLink ? " " + a.preLink : "") : ""}${(a.imgs||[]).length ? "  인포 이미지: " + a.imgs.join(" ") : ""}`);
     if(o.people && b.isFriend) L.push("  지인: " + (b.friends.length ? b.friends.join(", ") : "♥"));
@@ -2612,7 +2670,6 @@ function renderBoothSheet(){
             ${hasOpen ? `<div class="trow open"><span class="tl">부스 운영</span><b>${rangeText(b.openFrom, b.openTo)}</b>${chip(b.openFrom, b.openTo)}</div>` : ""}
             ${hasPick ? `<div class="trow pick"><span class="tl">${b.pickupFrom ? "선입금 수령" : "선입금 수령 마감"}</span><b>${b.pickupFrom ? rangeText(b.pickupFrom, b.pickup) : b.pickup}</b>${pickChip()}</div>` : ""}
             ${others.map(x=>`<div class="trow"><span class="tl">${esc(x.label || "시간")}</span><b>${rangeText(x.time, x.end) || "--:--"}</b>${x.end ? chip(x.time, x.end) : chip("", x.time)}</div>`).join("")}</div>`; })()}
-        ${recvBox(b)}
       </div>
       <div class="sums" id="bSums"></div>
       <div class="addhead"><h4>구매 리스트</h4><span id="bCount" class="hc"></span><button class="btn ghost sm" data-act="wfOpen">윗치폼</button><button class="btn ghost sm" data-act="toggleAdd" id="addTog">${UIP.addOpen ? "접기" : "+ 추가"}</button></div>
@@ -2683,7 +2740,8 @@ function parsePrice(v){ const n = parseInt(String(v).replace(/[^\d]/g,""),10); r
 function renderBoothItems(){
   const b = findBooth(sh && sh.id); if(!b) return;
   const st = boothStats(b), box = document.getElementById("bItems"); if(!box) return;
-  const multi = b.artists.length > 1;
+  const multi = b.artists.length > 1, ro = isSub() && lockedBooth(b);
+  if(RCV_OPEN.bid && RCV_OPEN.bid !== b.id) RCV_OPEN = {bid:"", key:null};
   const rows = list=>list.map(i=>itemRow(b, i, {grip:multi, art:false})).join("");
   let html = "";
   if(b.artists.length){
@@ -2699,12 +2757,15 @@ function renderBoothItems(){
         return;
       }
       const ap = periodOf(a), aps = ap ? periodState(ap, artistPaid(b, a)) : null;
-      html += `<div class="agbox" data-aid="${a.id}"><div class="agrp" data-aid="${a.id}" data-bid="${b.id}"><span class="an">${nm}</span>${aps && aps.cls !== "late" ? `<span class="dl ${aps.cls}" title="${esc(kindWord(ap) + " " + periodText(ap))}">${esc(ap.kind === "survey" ? aps.text : stripKind(aps.text))}</span>` : ""}</div>`
+      html += `<div class="agbox" data-aid="${a.id}"><div class="agrp" data-aid="${a.id}" data-bid="${b.id}"><span class="an">${nm}</span>${aps && aps.cls !== "late" ? `<span class="dl ${aps.cls}" title="${esc(kindWord(ap) + " " + periodText(ap))}">${esc(ap.kind === "survey" ? aps.text : stripKind(aps.text))}</span>` : ""}${rcvHead(b, a, ro)}</div>${ro ? "" : rcvEditor(b, a)}`
         + (its.length ? rows(its) : `<div class="aempty">이 작가로 지정한 물품이 없어요</div>`) + `</div>`;
     });
-  } else html = rows(b.items);
+  } else {
+    const has = (b.recv || []).length;
+    html = (has || !ro ? `<div class="rbarbox"><div class="agrp rbar"><span class="an">수령</span>${rcvHead(b, null, ro)}</div>${ro ? "" : rcvEditor(b, null)}</div>` : "") + rows(b.items);
+  }
   const anyImg = b.artists.some(a=>(a.imgs||[]).length);
-  box.innerHTML = html || `<div class="empty">살 물품을 아래에서 추가하거나<br>${anyImg ? "인포 이미지를 보면서 적어 보세요." : "‘윗치폼’으로 한꺼번에 넣어 보세요."}</div>`;
+  box.innerHTML = (b.items.length || b.artists.length) ? html : html + `<div class="empty">살 물품을 아래에서 추가하거나<br>${anyImg ? "인포 이미지를 보면서 적어 보세요." : "‘윗치폼’으로 한꺼번에 넣어 보세요."}</div>`;
   document.getElementById("bSums").innerHTML = `<div class="p">선입금 ${st.pre}개<b>${won(st.preAmt)}</b></div><div class="o">현장 ${st.on}개<b>${won(st.onAmt)}</b></div>${st.maybe ? `<div class="mb2">고민중 ${st.maybe}개 (합계에서 빠져 있어요)<b>${won(st.maybeAmt)}</b></div>` : ""}`;
   const bpb = payBreakdown(linesOf(b));
   const bpt = [["cash","현금"],["transfer","이체"],["card","카드"]].filter(([k])=>bpb[k] > 0);
@@ -2909,7 +2970,6 @@ function renderItemForm(){
       ${d.type !== "free" ? `<div class="field"><span>결제 수단</span>
         <div class="pick" id="iPay">${[["","미정"],["cash","현금"],["transfer","계좌이체"],["card","카드"]].map(([v,l])=>`<button type="button" data-pay="${v}" aria-pressed="${(d.pay||"")===v}">${l}</button>`).join("")}</div></div>` : ""}
       <label class="field"><span>대리구매 (부탁한 사람)</span><input class="inp" id="iFor" value="${esc(d.forWho||"")}" placeholder="비우면 내 물품" list="forList" autocomplete="off"><datalist id="forList">${forNames().map(n=>`<option value="${esc(n)}">`).join("")}</datalist></label>
-      <label class="field"><span>샘플 링크</span><input class="inp" id="iSample" value="${esc(d.sample||"")}" placeholder="https://… (샘플 이미지·글)" autocapitalize="off" spellcheck="false"></label>
       <label class="field"><span>메모</span><input class="inp" id="iNote" value="${esc(d.note)}" placeholder="수량 제한, 특전 등"></label>
       <div class="btnrow" style="margin-top:6px">
         <button class="btn danger" data-act="delItem">삭제</button>
@@ -2921,7 +2981,7 @@ function renderItemForm(){
     d.name = val("iName");
     if(val("iPrice") !== null) d.price = parsePrice(val("iPrice"));
     d.want = Math.max(1, parseInt(val("iWant"),10) || 1);
-    d.note = val("iNote"); d.sample = val("iSample");
+    d.note = val("iNote");
     if(val("iFor") !== null) d.forWho = val("iFor");
   };
   const iPay = document.getElementById("iPay");
@@ -3006,7 +3066,6 @@ function itemMenu(b, i, el){
     {step:{n:()=>i.want, label:n=>`수량 ${n}개`, fn:d=>{ i.want = Math.max(1, i.want + d); changed(); }}},
     {sep:1},
     {icon:"memo", label:"메모", hint:i.note ? "있음" : "", fn:()=>editNote(b, i, null)},
-    i.sample ? {icon:"link", label:"샘플 열기", fn:()=>window.open(i.sample, "_blank", "noopener")} : null,
     flagChips(i),
     payEntry(i),
     {icon:"user", label:"대리구매", hint:i.forWho || "", fn:()=>editFor(b, i)},
@@ -3035,7 +3094,6 @@ function catMenu(b, i, x){
     subs ? null : {step:{n:()=>i.want, label:n=>n ? `구매 리스트 ${n}개` : "담지 않음", fn:d=>{ i.want = Math.max(0, i.want + d); if(!i.want) i.st = 0; changed(); }}},
     subs ? null : {sep:1},
     {icon:"memo", label:"메모", hint:i.note ? "있음" : "", fn:()=>editNote(b, i, null)},
-    i.sample ? {icon:"link", label:"샘플 열기", fn:()=>window.open(i.sample, "_blank", "noopener")} : null,
     {icon:"plus", label:"하위 물품 추가", fn:()=>addSubs(b, i)},
     flagChips(i),
     typeEntry(i),
@@ -3929,7 +3987,7 @@ function shareProj(st){
     sections:[...st.sections], cats:[...st.cats], halls:clone(st.halls), marks:clone(st.marks),
     booths:st.booths.map(b=>({id:b.id, section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, memo:b.memo||"", tags:[...(b.tags||[])], recv:[...(b.recv||[])], rmemo:b.rmemo||"", pickup:b.pickup||"", pickupFrom:b.pickupFrom||"", openFrom:b.openFrom||"", openTo:b.openTo||"", times:clone(b.times||[]), pos:clone(b.pos||null),
       artists:(b.artists||[]).map(a=>({id:a.id, nick:a.nick||"", site:a.site||"", info:a.info||"", recv:[...(a.recv||[])], memo:a.memo||"", preFrom:a.preFrom||"", preTo:a.preTo||"", preToTime:a.preToTime||"", preLink:a.preLink||"", preKind:a.preKind==="survey" ? "survey" : "", imgs:[...(a.imgs||[])]})),
-      items:(b.items||[]).filter(i=>i.type === "free").map(i=>({id:i.id, name:i.name, price:0, type:"free", cat:i.cat||"", artist:i.artist||"", sample:i.sample||""}))}))};
+      items:(b.items||[]).filter(i=>i.type === "free").map(i=>({id:i.id, name:i.name, price:0, type:"free", cat:i.cat||"", artist:i.artist||""}))}))};
 }
 function sanitizeProj(p){
   if(!p || typeof p !== "object" || !Array.isArray(p.booths)) throw new Error("bad data");
@@ -4621,7 +4679,7 @@ function lockBoothForm(){
 function lockItemForm(){
   const body = sheet.querySelector(".sh-body"); if(!body) return;
   body.insertAdjacentHTML("afterbegin", `<p class="lknote">구독한 행사의 원본 물품이에요. 수량·우선순위·메모만 바꿀 수 있어요.</p>`);
-  ["#iName", "#iPrice", "#iCat", "#iArt", "#iType button", "#iSample"].forEach(q=>body.querySelectorAll(q).forEach(el=>{ el.disabled = true; }));
+  ["#iName", "#iPrice", "#iCat", "#iArt", "#iType button"].forEach(q=>body.querySelectorAll(q).forEach(el=>{ el.disabled = true; }));
   body.querySelectorAll("[data-act=delItem]").forEach(el=>{ el.style.display = "none"; });
 }
 const LOCK_ITEM = new Set(["판매 형태", "작가", "하위 물품 추가", "이름 바꾸기", "가격 바꾸기", "하위 물품 삭제", "삭제", "물품 삭제"]);
@@ -4889,11 +4947,9 @@ document.addEventListener("click", async e=>{
       const d = sh.draft; if(!d.name.trim()){ toast("물품 이름을 적어 주세요"); return; }
       const b = findBooth(sh.id); const it = b && b.items.find(i=>i.id===sh.iid);
       if(!it){ toast("다른 곳에서 지워진 물품이에요"); closeSheet(); return; }
-      const smp = (d.sample||"").trim() ? normLink(d.sample) : "";
-      if(smp === null){ toast("샘플 링크를 https://로 시작하게 적어 주세요"); return; }
       const price = d.type==="free" ? 0 : d.price, cap = d.type==="pre" ? 2 : 1, want = Math.max(1, +d.want || 1);
       Object.assign(it, {name:d.name.trim(), price, want, type:d.type, st: want ? Math.min(cap, it.st) : 0, must:!!d.must, maybe:!!d.maybe, note:(d.note||"").trim(), cat:d.cat||"",
-        sample:smp, artist: soleArtist(b) || d.artist || "", pay: d.type === "free" ? "" : (["cash","transfer","card"].includes(d.pay) ? d.pay : ""), forWho:String(d.forWho||"").trim().slice(0,30)});
+        artist: soleArtist(b) || d.artist || "", pay: d.type === "free" ? "" : (["cash","transfer","card"].includes(d.pay) ? d.pay : ""), forWho:String(d.forWho||"").trim().slice(0,30)});
       save(); renderTop(); sh = {kind:"booth", id:b.id}; renderSheet(); toast("저장했어요");
       break;
     }
