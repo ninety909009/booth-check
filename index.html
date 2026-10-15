@@ -1145,13 +1145,19 @@ function normalize(d){
 }
 const IDX_KEY = "boothcheck.index.v2", EV_PREFIX = "boothcheck.ev.";
 const memEvents = {}, lastJs = {}, pbMem = {};
+/* 불러오다 오류가 난 행사: 저장된 원본을 덮어쓰지 않도록 저장·동기화를 멈춤 */
+const BROKEN = new Set(), RESCUE_PREFIX = "boothcheck.rescue.";
 function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
 function lsSet(k, v){ try{ localStorage.setItem(k, v); return true; }catch(e){ return false; } }
 function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
 function loadEvent(id){
   if(memEvents[id]) return memEvents[id];
-  let st = null;
-  try{ const r = lsGet(EV_PREFIX + id); if(r) st = normalize(JSON.parse(r)); }catch(e){}
+  let st = null, raw = null;
+  try{ raw = lsGet(EV_PREFIX + id); if(raw) st = normalize(JSON.parse(raw)); }
+  catch(e){
+    st = null; try{ console.error("부스 체크: 행사를 불러오지 못함", id, e); }catch(e2){}
+    if(raw){ BROKEN.add(id); if(!lsGet(RESCUE_PREFIX + id)) lsSet(RESCUE_PREFIX + id, raw); }
+  }
   st = st || defaultState(); lastJs[id] = JSON.stringify(st);
   return (memEvents[id] = st);
 }
@@ -1171,10 +1177,12 @@ const UIP = (()=>{ const wide = !window.matchMedia || window.matchMedia("(min-wi
 const infoEdit = new Set();
 function saveUIP(){ lsSet("boothcheck.ui", JSON.stringify(UIP)); }
 let S = loadEvent(LIB.current);
-let saveT = null, saveWarned = false;
+let saveT = null, saveWarned = false, brokenWarned = false;
+function brokenToast(){ if(brokenWarned) return; brokenWarned = true; toast("이 행사를 불러오다 오류가 나서 자동 저장을 멈췄어요. 저장된 내용은 지워지지 않았어요. 앱을 최신으로 바꾼 뒤 새로고침해 주세요."); }
 function flush(){
   clearTimeout(saveT); saveT = null;
   const id = LIB.current;
+  if(BROKEN.has(id)){ brokenToast(); return; }
   guardShared();
   memEvents[id] = S;
   const js = JSON.stringify(S);
@@ -1583,9 +1591,10 @@ function hmMin(t){ const [h,m] = t.split(":").map(Number); return h*60 + m; }
 function fmtLeft(m){ return m >= 60 ? `${Math.floor(m/60)}시간${m%60 ? " " + m%60 + "분" : ""}` : `${m}분`; }
 /* ---------- 수령 방법 (실시간 공유됨, 구독자는 읽기 전용) ---------- */
 const RECV = [["name4","성함+번호 끝 4자리"],["wfqr","윗치폼 QR"],["tmmqr","TMM QR"],["custom","직접 작성"]];
-const RECV_KEYS = new Set(RECV.map(x=>x[0]));
+/* normalize()가 앱 시작 때(이 줄보다 먼저) 불리므로 위쪽 const를 쓰면 안 됨 */
 function normRecv(v, memo){
-  if(Array.isArray(v)) return [...new Set(v.map(x=>str(x)).filter(x=>RECV_KEYS.has(x)))];
+  const ok = ["name4","wfqr","tmmqr","custom"];
+  if(Array.isArray(v)) return [...new Set(v.map(x=>str(x)).filter(x=>ok.includes(x)))];
   return str(memo||"").trim() ? ["custom"] : [];
 }
 function recvTargets(b){ const arts = b.artists.filter(a=>!a.hidden); return arts.length ? arts : (b.artists.length ? [] : [null]); }
@@ -2037,6 +2046,7 @@ function renderInfo(){
   const e = S.event;
   main.innerHTML = `<div class="pad setpage">
     <header class="sethead"><h1>설정</h1><p>공유·구역·상품 종류는 지금 보고 있는 <b>${esc(e.name || "이름 없는 행사")}</b>에만 적용돼요.</p></header>
+    ${rescueCard()}
     ${sgroup("계정", clCards())}
     ${sgroup("이 행사 공유", `${clLiveCard()}
     <div class="card">
@@ -3843,8 +3853,22 @@ function ckFoldInfo(unpaid){
 
 /* ---------- cloud: Google 로그인 동기화 + 실시간 공유 (Firebase) ---------- */
 const FB_VER = "12.19.0";
-const FB_RAW = (()=>{ let c = window.BOOTHCHECK_FIREBASE; if(!c){ try{ c = typeof firebaseConfig !== "undefined" ? firebaseConfig : null; }catch(e){ c = null; } } return c && typeof c === "object" ? c : null; })();
-const FB_CFG = FB_RAW && String(FB_RAW.apiKey||"").trim() && String(FB_RAW.projectId||"").trim() && String(FB_RAW.authDomain||"").trim() ? FB_RAW : null;
+function cfgOk(c){ return !!(c && typeof c === "object" && ["apiKey","authDomain","projectId"].every(k=>typeof c[k] === "string" && c[k].trim())); }
+const FB_RAW = (()=>{
+  let a = window.BOOTHCHECK_FIREBASE, b = null;
+  try{ b = typeof firebaseConfig !== "undefined" ? firebaseConfig : null; }catch(e){ b = null; }
+  /* 둘 다 있으면 값이 채워진 쪽을 씀 */
+  const c = cfgOk(a) ? a : cfgOk(b) ? b : (a || b);
+  return c && typeof c === "object" ? c : null;
+})();
+const CFG_KEY = "boothcheck.fbcfg";
+const CFG_FIELDS = ["apiKey","authDomain","projectId","storageBucket","messagingSenderId","appId","measurementId"];
+function cfgPick(c){ const o = {}; for(const k of CFG_FIELDS) if(typeof c[k] === "string" && c[k].trim() && c[k].length <= 200) o[k] = c[k].trim(); return o; }
+/* firebase-config.js를 잠깐 못 읽거나(느린 인터넷·옛 캐시) 빈 파일이 올라가도 로그인이 풀리지 않게, 마지막으로 성공한 설정을 이 기기에 기억 */
+const FB_SAVED = (()=>{ if(location.protocol === "file:") return null; try{ const c = JSON.parse(lsGet(CFG_KEY) || "null"); return cfgOk(c) ? cfgPick(c) : null; }catch(e){ return null; } })();
+const FB_CFG = cfgOk(FB_RAW) ? cfgPick(FB_RAW) : FB_SAVED;
+const FB_FALLBACK = !cfgOk(FB_RAW) && !!FB_SAVED;
+if(cfgOk(FB_RAW) && location.protocol !== "file:") lsSet(CFG_KEY, JSON.stringify(FB_CFG));
 const IN_CLAUDE = !!(window.claude && typeof window.claude.use === "function");
 function cfgProblem(){
   if(IN_CLAUDE) return "Claude 안에서 보는 화면에서는 로그인·실시간 공유를 쓸 수 없어요. GitHub Pages 주소로 열어 주세요.";
@@ -4163,6 +4187,7 @@ async function clStartUserSync(){
 async function clApplyUserDoc(r){
   if(!CL.user) return;
   const id = r.id, ent0 = entOf(id);
+  if(BROKEN.has(id)) return;
   if(!sid(id)) return;
   if(ent0 && ent0.acct && ent0.acct !== CL.user.uid) return;
   if(r.del){ if(ent0 && (ent0.mod||0) <= (r.upd||0)){ removeLocal(id); if(sh && sh.kind === "events") renderEvents(); } return; }
@@ -4208,6 +4233,7 @@ function clQueueUser(id, ms){
   CL.userT[id] = setTimeout(()=>{ delete CL.userT[id]; clPushUser(id); }, ms == null ? 1500 : ms);
 }
 async function clPushUser(id){
+  if(BROKEN.has(id)) return;
   const ent = entOf(id); if(!ent || !CL.user || !CL.db) return;
   if(ent.acct && ent.acct !== CL.user.uid) return;
   if(id === LIB.current && saveT) flush();
@@ -4262,6 +4288,7 @@ function clListenPub(){
   CL.unsubPub = CL.F.onSnapshot(pubRef(l.code), snap=>{ if(CL.pubKey === key) clOnPub(id, l.code, snap); }, e=>clErr(e, true));
 }
 async function clOnPub(id, code, snap){
+  if(BROKEN.has(id)) return;
   const l = linkOf(id); if(!l || l.code !== code) return;
   if(snap.metadata && snap.metadata.hasPendingWrites) return;
   if(!snap.exists() || snap.data().closed){
@@ -4310,6 +4337,7 @@ function clQueuePub(id, ms){
   CL.pubT[id] = setTimeout(()=>{ delete CL.pubT[id]; clPushPub(id); }, ms == null ? 1200 : ms);
 }
 async function clPushPub(id){
+  if(BROKEN.has(id)) return;
   const l = linkOf(id); if(!l || (l.role !== "own" && l.role !== "edit") || !CL.db) return;
   if(!CL.user){ clRefreshUI(); return; }
   if(CL.pubBusy[id]){ CL.pubAgain[id] = true; return; }
@@ -4514,7 +4542,9 @@ function clStatus(){
   if(wait) return "곧 저장돼요";
   return CL.lastSync ? `모든 기기와 동기화됨 · ${fmtWhen(CL.lastSync)}` : "모든 기기와 동기화됨";
 }
-function clAccInner(){
+function cfgNote(){ return FB_FALLBACK && !IN_CLAUDE ? `<p class="desc cfgwarn">${esc(cfgProblem())} 지금은 이 기기에 기억해 둔 설정(${esc(FB_CFG.projectId)})으로 연결했어요.</p>` : ""; }
+function clAccInner(){ return clAccBody().replace("</h2>", "</h2>" + cfgNote()); }
+function clAccBody(){
   if(CL.failed) return `<h2>로그인·동기화</h2><p class="desc">로그인 기능을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.</p>`;
   if(!CL.user) return `<h2>로그인·동기화</h2><p class="desc">Google 계정으로 로그인하면 행사가 계정에 저장돼서 휴대폰과 PC에서 같은 내용을 볼 수 있어요. 로그인하지 않아도 이 기기에서는 지금처럼 쓸 수 있어요.</p>
     <button class="btn pre block" data-act="clLogin" ${CL.authKnown ? "" : "disabled"}>${CL.authKnown ? "Google로 로그인" : "불러오는 중…"}</button>`;
@@ -4643,6 +4673,7 @@ document.addEventListener("click", async e=>{
     case "iedit": { const k = t.dataset.k; if(infoEdit.has(k)) infoEdit.delete(k); else infoEdit.add(k); renderView(); break; }
     case "ckfold": { UIP.ckBar = !UIP.ckBar; saveUIP(); t.setAttribute("aria-expanded", String(UIP.ckBar)); const o = document.getElementById("ckOpts"); if(o) o.hidden = !UIP.ckBar; ckFoldInfo(); break; }
     case "wfOpen": openSheet({kind:"wf", id:sh.id, text:""}); break;
+    case "rescue": doRescue(t.dataset.k); break;
     case "wfAll": {
       const v = t.dataset.on === "1";
       for(const r of sh.rows||[]){ if(v && r.sold) continue; r.on = v; r.qty = v ? (r.qty || 1) : 0; }
@@ -5081,6 +5112,36 @@ fab.addEventListener("click", ()=>{
 const PWA = {prompt:null, sw:false, ok:false};
 function isStandalone(){ return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true; }
 function isIOS(){ return /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+/* ---------- 되살리기: 이 기기에 남아 있는 예전 사본 ---------- */
+function stSize(st){ return st ? st.booths.length + st.booths.reduce((n,b)=>n + b.items.length, 0) : 0; }
+function rescueCands(){
+  const id = LIB.current, cur = stSize(S), out = [];
+  const tryFull = (key, label)=>{ try{ const r = lsGet(key); if(!r) return; const st = normalize(JSON.parse(r)); if(stSize(st) > cur * 2 + 1) out.push({key, label, st, full:true, n:st.booths.length, m:stSize(st) - st.booths.length}); }catch(e){} };
+  tryFull(RESCUE_PREFIX + id, "오류가 났을 때 따로 보관해 둔 원본");
+  tryFull(SB_PREFIX + id, "마지막으로 계정과 동기화한 사본");
+  const b = getBase(id);
+  if(b && b.p && b.p.booths.length > S.booths.length * 2 + 1) out.push({key:PB_PREFIX + id, label:"실시간 공유 원본 (부스·작가 정보만)", full:false, n:b.p.booths.length, m:0});
+  return out;
+}
+function rescueCard(){
+  if(isSub()) return "";
+  const c = rescueCands(); if(!c.length) return "";
+  return sgroup("되살리기", `<div class="card" id="rescueCard"><h2>사라진 내용 되살리기</h2>
+    <p class="desc">이 기기에 지금보다 내용이 많은 예전 사본이 남아 있어요. 고르면 지금 행사에 다시 넣어요. 되살리기 전에 ‘백업 파일 저장’을 해 두면 더 안전해요.</p>
+    ${c.map((x,k)=>`<div class="mgrow"><div><b>${esc(x.label)}</b><small>부스 ${x.n}개${x.full ? ` · 물품 ${x.m}개` : ""}</small></div><button class="btn pre sm" data-act="rescue" data-k="${k}">되살리기</button></div>`).join("")}
+  </div>`);
+}
+async function doRescue(k){
+  const x = rescueCands()[+k]; if(!x) return;
+  if(!(await confirmBox(x.full ? `‘${x.label}’으로 이 행사를 되돌릴까요?\n지금 화면의 내용은 이 사본으로 바뀌어요.` : `‘${x.label}’에서 빠진 부스·작가 정보를 다시 넣을까요?\n지금 있는 물품·체크는 그대로 둬요.`, "되살리기"))) return;
+  const id = LIB.current;
+  BROKEN.delete(id);
+  if(x.full) S = x.st; else { const b = getBase(id); applyShared(S, b.p, null, true); }
+  memEvents[id] = S; lastJs[id] = "";
+  flush();
+  if(x.full && x.key === RESCUE_PREFIX + id) lsDel(x.key);
+  renderTop(); renderView(); toast("되살렸어요");
+}
 function pwaCard(){
   if(IN_CLAUDE || location.protocol === "file:") return "";
   const st = isStandalone() ? `<p class="pwast ok">✓ 홈 화면 앱으로 실행 중이에요.</p>` : "";
@@ -5111,6 +5172,7 @@ if("serviceWorker" in navigator && !IN_CLAUDE && (location.protocol === "https:"
   });
 }
 /* boot */
+if(BROKEN.size) setTimeout(brokenToast, 800);
 renderTop();
 setView("booths");
 clInit();
