@@ -324,6 +324,34 @@ main.mapmode{overflow:hidden}
 .mapempty{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);z-index:7;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;text-align:center;font-size:14px;line-height:1.6;color:var(--muted);width:min(300px,84%)}
 .mapempty strong{display:block;color:var(--text);font-size:16px;margin-bottom:4px}
 .mapbottom{flex:none;background:var(--card);border-top:1px solid var(--line);padding:10px 12px 12px}
+.mapbottom.route{padding:8px 12px 10px;max-height:44%;display:flex!important;flex-direction:column}
+.rpanel{display:flex;flex-direction:column;min-height:0;flex:1}
+.rhead{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.rfold{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;border:0;background:none;padding:4px 0;text-align:left;color:var(--text)}
+.rfold b{font-size:15px}
+.rfold .rcnt{font-size:13px;color:var(--muted)}
+.rfold i{font-style:normal;font-size:12px;color:var(--muted);margin-left:auto;margin-right:6px}
+.rstart{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
+.rstart select{height:32px;max-width:150px;font-size:13px;padding:0 6px}
+.rorder{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.rgrp{font-size:12.5px;font-weight:700;color:var(--rc);background:var(--paper);border:1.5px solid var(--rc);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.rswap{width:28px;height:28px;border:1px solid var(--line);border-radius:50%;background:var(--card);color:var(--muted);font-size:13px;padding:0}
+.rhint{font-size:12px;color:var(--muted);margin:6px 0 4px;line-height:1.45}
+.rlist{overflow:auto;min-height:0;flex:1;-webkit-overflow-scrolling:touch}
+.rstop{display:flex;align-items:center;gap:8px;padding:6px 2px;border-top:1px solid var(--line);cursor:pointer}
+.rstop:first-child{border-top:0}
+.rno{flex:none;width:24px;height:24px;border-radius:50%;background:var(--rc);color:#fff;font-size:12px;display:grid;place-items:center;font-variant-numeric:tabular-nums}
+.rno.off{background:var(--card);color:var(--rc);border:1.5px dashed var(--rc)}
+.rnm{flex:1;min-width:0;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rnm small{display:block;font-size:12px;font-weight:500;color:var(--muted)}
+.rmust{font-style:normal;color:var(--star);margin-right:3px}
+.runh{font-size:12.5px;font-weight:700;color:var(--muted);padding:10px 2px 4px;border-top:1px solid var(--line)}
+.runh small{font-weight:500;margin-left:4px}
+.rsvg{position:absolute;left:0;top:0;z-index:1;pointer-events:none;overflow:visible}
+.rsvg line{stroke-width:3.5;stroke-linecap:round;stroke-dasharray:7 6;opacity:.9}
+.mb .rbadge{position:absolute;left:2px;top:2px;z-index:3;min-width:17px;height:17px;padding:0 4px;border-radius:9px;background:var(--rc);color:#fff;font-style:normal;font-size:11px;font-weight:800;line-height:17px;text-align:center;box-shadow:0 0 0 1.5px #fff;font-family:inherit}
+.mb:has(.rbadge) .mfr{display:none}
+.mk .rstartb{position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-style:normal;font-size:11px;font-weight:800;background:var(--text);color:var(--card);border-radius:8px;padding:1px 7px;white-space:nowrap;z-index:4}
 .selbar{display:flex;align-items:center;gap:8px;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--line);min-height:50px}
 .selbar .nm{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .selbar .hint{font-size:13px;color:var(--muted);line-height:1.5}
@@ -2265,18 +2293,112 @@ function mv(){ const h = curHall(); return mapViews[h.id] || (mapViews[h.id] = {
 function fp(b){ const len = b.half ? 1 : 2*spanOf(b), r = b.pos && b.pos.rot; return {w: r ? 1 : len, h: r ? len : 1}; }
 function boothState(b){ const st = boothStats(b); if(!st.total) return st.maybe ? "maybe" : "none"; return st.fin===st.total ? "done" : "todo"; }
 
+/* ---------- 동선: 그룹 순서(기본 현장 → 무료 → 선입금) → 그룹 안에서 ★꼭 사기 먼저 → 가까운 순 ---------- */
+const ROUTE_G = {on:"현장 판매", free:"무료 배포", pre:"선입금 수령"};
+const ROUTE_C = {on:"var(--on)", free:"#0E9F8F", pre:"var(--pre)"};
+let mapRouteData = null;
+function routeCfg(){
+  const r = (UIP.route && typeof UIP.route === "object") ? UIP.route : (UIP.route = {});
+  if(!Array.isArray(r.order) || r.order.length !== 3 || !["on","free","pre"].every(k=>r.order.includes(k))) r.order = ["on","free","pre"];
+  if(!r.start || typeof r.start !== "object") r.start = {};
+  return r;
+}
+function routeStartMark(){
+  const id = routeCfg().start[LIB.current];
+  if(id === "") return null;
+  const m = id ? S.marks.find(x=>x.id===id) : null;
+  return m || S.marks.find(x=>/입구|입장/.test(x.label || "")) || null;
+}
+function boothCenter(b){ const f = fp(b); return {h:b.pos.hall, x:b.pos.x + f.w/2, y:b.pos.y + f.h/2}; }
+function markCenter(m){ return {h:m.hall, x:m.x + m.w/2, y:m.y + m.h/2}; }
+function pdist(a, b){ return (a.h !== b.h ? 10000 : 0) + Math.hypot(a.x - b.x, a.y - b.y); }
+function routeInfo(b){
+  const ls = linesOf(b).filter(L=>!L.maybe && !isFinal(L) && !artHidden(b, L));
+  if(!ls.length) return null;
+  const n = {on:0, free:0, pre:0}; for(const L of ls) n[L.type] = (n[L.type] || 0) + 1;
+  const g = routeCfg().order.find(k=>n[k] > 0);
+  return g ? {g, n, must: ls.some(L=>L.must)} : null;
+}
+/* 가까운 순으로 잇고(최근접), 2-opt로 꼬인 길을 풀어 줌. 시작점 고정·끝점 자유 */
+function orderPts(pts, from){
+  if(pts.length < 2) return pts.slice();
+  const left = pts.slice(), out = [];
+  let cur = from;
+  while(left.length){
+    let bi = 0, bd = Infinity;
+    left.forEach((p,i)=>{ const d = cur ? pdist(cur, p.c) : (p.c.y * 1000 + p.c.x); if(d < bd){ bd = d; bi = i; } });
+    const p = left.splice(bi, 1)[0]; out.push(p); cur = p.c;
+  }
+  const D = (a, b)=> a && b ? pdist(a, b) : 0;
+  for(let it = 0, better = true; better && it < 40; it++){
+    better = false;
+    for(let i = 0; i < out.length - 1; i++){
+      const pi = i ? out[i-1].c : from;
+      for(let j = i + 1; j < out.length; j++){
+        const nj = j + 1 < out.length ? out[j+1].c : null;
+        if(D(pi, out[j].c) + D(out[i].c, nj) + 1e-9 < D(pi, out[i].c) + D(out[j].c, nj)){ out.splice(i, j - i + 1, ...out.slice(i, j + 1).reverse()); better = true; }
+      }
+    }
+  }
+  return out;
+}
+function computeRoute(){
+  const cfg = routeCfg(), sm = routeStartMark(), hallIds = new Set(S.halls.map(h=>h.id));
+  let cur = sm ? markCenter(sm) : null;
+  const stops = [], unplaced = [];
+  for(const g of cfg.order){
+    const bs = []; for(const b of sortedBooths()){ const r = routeInfo(b); if(r && r.g === g) bs.push({b, r}); }
+    const placed = bs.filter(x=>x.b.pos && hallIds.has(x.b.pos.hall)).map(x=>({...x, c:boothCenter(x.b)}));
+    for(const seg of [placed.filter(x=>x.r.must), placed.filter(x=>!x.r.must)]){
+      for(const p of orderPts(seg, cur)){ stops.push({...p, g}); cur = p.c; }
+    }
+    for(const x of bs) if(!(x.b.pos && hallIds.has(x.b.pos.hall))) unplaced.push({...x, g});
+  }
+  return {stops, unplaced, start:sm};
+}
+function routeSvg(h, fr){
+  const R = mapRouteData; if(!R || !R.stops.length) return "";
+  const px = c=>`${((c.x - fr.ox) * CELL).toFixed(1)},${((c.y - fr.oy) * CELL).toFixed(1)}`;
+  let prev = R.start ? markCenter(R.start) : null, segs = "";
+  for(const s of R.stops){
+    if(prev && prev.h === h.id && s.c.h === h.id) segs += `<line x1="${px(prev).split(",")[0]}" y1="${px(prev).split(",")[1]}" x2="${px(s.c).split(",")[0]}" y2="${px(s.c).split(",")[1]}" style="stroke:${ROUTE_C[s.g]}" marker-end="url(#rarr-${s.g})"/>`;
+    prev = s.c;
+  }
+  if(!segs) return "";
+  const mk = g=>`<marker id="rarr-${g}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:${ROUTE_C[g]}"/></marker>`;
+  return `<svg class="rsvg" width="${fr.w * CELL}" height="${fr.h * CELL}" aria-hidden="true"><defs>${mk("on")}${mk("free")}${mk("pre")}</defs>${segs}</svg>`;
+}
+function routeCounts(n){ return [["on","현장"],["free","무료"],["pre","선입금"]].filter(([k])=>n[k]).map(([k,l])=>`${l} ${n[k]}`).join(" · "); }
+function routePanel(){
+  const R = mapRouteData || (mapRouteData = computeRoute()), cfg = routeCfg(), multiHall = S.halls.length > 1;
+  const hallName = id=>{ const h = S.halls.find(x=>x.id===id); return h ? h.name : ""; };
+  const marks = S.marks.filter(m=>(m.label || "").trim());
+  const curStart = R.start ? R.start.id : "";
+  const order = cfg.order.map((g,k)=>`${k ? `<button type="button" class="rswap" data-act="rswap" data-k="${k}" aria-label="${ROUTE_G[cfg.order[k-1]]}와 ${ROUTE_G[g]} 순서 바꾸기">⇄</button>` : ""}<span class="rgrp" style="--rc:${ROUTE_C[g]}">${k+1}. ${ROUTE_G[g]}</span>`).join("");
+  let n = 0;
+  const rows = R.stops.map(s=>{ n++; return `<div class="rstop" data-act="rgo" data-id="${s.b.id}"><b class="rno" style="--rc:${ROUTE_C[s.g]}">${n}</b><span class="mini" style="--sc:${secColor(s.b.section)}">${esc(boothCode(s.b))}</span><span class="rnm">${s.r.must ? '<em class="rmust">★</em>' : ""}${esc(s.b.name || "이름 없는 부스")}<small>${routeCounts(s.r.n)}${multiHall ? " · " + esc(hallName(s.b.pos.hall)) : ""}</small></span><button type="button" class="btn ghost sm" data-act="open" data-id="${s.b.id}">열기</button></div>`; }).join("");
+  const un = R.unplaced.length ? `<div class="runh">배치도에 없는 부스 ${R.unplaced.length}곳 <small>‘배치 편집’에서 놓으면 동선에 들어가요</small></div>` + R.unplaced.map(s=>`<div class="rstop" data-act="open" data-id="${s.b.id}"><b class="rno off" style="--rc:${ROUTE_C[s.g]}">–</b><span class="mini" style="--sc:${secColor(s.b.section)}">${esc(boothCode(s.b))}</span><span class="rnm">${s.r.must ? '<em class="rmust">★</em>' : ""}${esc(s.b.name || "이름 없는 부스")}<small>${ROUTE_G[s.g]} · ${routeCounts(s.r.n)}</small></span></div>`).join("") : "";
+  return `<div class="rpanel">
+    <div class="rhead"><button type="button" class="rfold" data-act="rfold" aria-expanded="${!UIP.routeFold}"><b>동선</b><span class="rcnt">${R.stops.length + R.unplaced.length ? `${R.stops.length + R.unplaced.length}곳` : ""}</span><i>${UIP.routeFold ? "▲ 펼치기" : "▼ 접기"}</i></button><label class="rstart">출발<select class="inp sm" id="rStart"><option value="">없음 (첫 부스부터)</option>${marks.map(m=>`<option value="${m.id}" ${m.id === curStart ? "selected" : ""}>${esc(m.label)}${multiHall ? " (" + esc(hallName(m.hall)) + ")" : ""}</option>`).join("")}</select></label></div>
+    ${UIP.routeFold ? "" : `<div class="rorder">${order}</div>
+    <p class="rhint">남은 물품이 있는 부스만, 그룹 순서 → ★꼭 사기 → 가까운 순으로 이었어요. 고민중 물품은 빠져요.</p>
+    <div class="rlist">${rows || (R.unplaced.length ? "" : `<p class="rhint" style="margin:6px 0">남은 물품이 있는 부스가 없어요. 다 챙겼어요!</p>`)}${un}</div>`}
+  </div>`;
+}
+
 function renderMap(){
   curHall();
   main.innerHTML = `<div class="mapwrap">
     <div class="maptop">
       <div class="chips" id="hallChips"></div>
+      ${mapEdit ? "" : `<button class="btn ${UIP.mapRoute ? "pre" : "ghost"} editbtn" data-act="mroute" aria-pressed="${!!UIP.mapRoute}">동선</button>`}
       <button class="btn ${mapEdit?"pre":"ghost"} editbtn" data-act="mapedit">${mapEdit?"완료":"배치 편집"}</button>
     </div>
     ${!mapEdit && (allTags().length || friendCount()) ? `<div class="chips maptags" id="mapTags"></div>` : ""}
     <div class="mapview ${mapEdit?"editing":""}" id="mapview">
       <div class="mapcanvas" id="mapcanvas"></div>
       <div id="mapEmpty"></div>
-      ${mapEdit ? "" : `<div class="legend"><span><i style="background:linear-gradient(90deg,#3D6BF0 33%,#EB6A00 33% 66%,#0E9F8F 66%)"></i>살 것 남음</span><span><i style="border:2px dashed var(--muted)"></i>물품 없음</span><span><i style="background:var(--line)"></i>다 챙김 ✓</span></div>`}
+      ${mapEdit || UIP.mapRoute ? "" : `<div class="legend"><span><i style="background:linear-gradient(90deg,#3D6BF0 33%,#EB6A00 33% 66%,#0E9F8F 66%)"></i>살 것 남음</span><span><i style="border:2px dashed var(--muted)"></i>물품 없음</span><span><i style="background:var(--line)"></i>다 챙김 ✓</span></div>`}
       <div class="zoomctl"><button data-act="zin" aria-label="확대">+</button><button data-act="zout" aria-label="축소">−</button><button class="fit" data-act="zfit">맞춤</button></div>
     </div>
     <div class="mapbottom" id="mapbottom"></div>
@@ -2320,20 +2442,32 @@ function renderMapItems(){
     return `<div class="mk ${sel?"sel":""}" data-mid="${m.id}" style="left:${(m.x-fr.ox)*CELL}px;top:${(m.y-fr.oy)*CELL}px;width:${m.w*CELL}px;height:${m.h*CELL}px;--mc:${m.color}"><span>${esc(m.label)}</span>${sel?`<i class="rh" data-mid="${m.id}"></i>`:""}</div>`;
   }).join("");
   const placed = S.booths.filter(b=>b.pos && b.pos.hall===h.id);
+  const route = UIP.mapRoute && !mapEdit;
+  mapRouteData = route ? computeRoute() : null;
+  const rno = new Map(); if(route) mapRouteData.stops.forEach((x,k)=>rno.set(x.b.id, {n:k+1, g:x.g}));
   const booths = placed.map(b=>{
     const f = fp(b), st = boothStats(b), code = boothCode(b);
     const x = b.pos.x - fr.ox, y = b.pos.y - fr.oy;
     const sel = mapEdit && mapSel && mapSel.t==="b" && mapSel.id===b.id;
-    const dim = !mapEdit && tagFilter && !matchTag(b);
-    return `<div class="mb ${boothState(b)} ${sel?"sel":""} ${spanOf(b)>1 && !b.pos.rot ? "" : (code.length>=5?"xlong":(code.length>=4?"long":""))} ${b.half?"":"full"} ${spanOf(b)>1?"multi":""} ${!b.half && b.pos.rot?"vert":""} ${dim?"dim":""} ${b.isFriend?"fr":""}" data-bid="${b.id}" style="left:${x*CELL+2}px;top:${y*CELL+2}px;width:${f.w*CELL-4}px;height:${f.h*CELL-4}px;--sc:${secColor(b.section)}"><b>${esc(code)}</b>${b.name?`<i>${esc(b.name)}</i>`:""}${b.isFriend?'<em class="mfr">♥</em>':""}${st.must?'<em class="mst">★</em>':""}${(()=>{ const ps = pickupState(b); return ps && ps.pend && (ps.cls==="soon"||ps.cls==="late") ? '<em class="mdl">⏰</em>' : ""; })()}</div>`;
+    const dim = !mapEdit && ((tagFilter && !matchTag(b)) || (route && !rno.has(b.id)));
+    return `<div class="mb ${boothState(b)} ${sel?"sel":""} ${spanOf(b)>1 && !b.pos.rot ? "" : (code.length>=5?"xlong":(code.length>=4?"long":""))} ${b.half?"":"full"} ${spanOf(b)>1?"multi":""} ${!b.half && b.pos.rot?"vert":""} ${dim?"dim":""} ${b.isFriend?"fr":""}" data-bid="${b.id}" style="left:${x*CELL+2}px;top:${y*CELL+2}px;width:${f.w*CELL-4}px;height:${f.h*CELL-4}px;--sc:${secColor(b.section)}"><b>${esc(code)}</b>${b.name?`<i>${esc(b.name)}</i>`:""}${b.isFriend?'<em class="mfr">♥</em>':""}${st.must?'<em class="mst">★</em>':""}${(()=>{ const ps = pickupState(b); return ps && ps.pend && (ps.cls==="soon"||ps.cls==="late") ? '<em class="mdl">⏰</em>' : ""; })()}${route && rno.has(b.id) ? `<em class="rbadge" style="--rc:${ROUTE_C[rno.get(b.id).g]}">${rno.get(b.id).n}</em>` : ""}</div>`;
   }).join("");
-  cv.innerHTML = marks + booths;
+  cv.innerHTML = marks + (route ? routeSvg(h, fr) : "") + booths;
+  if(route && mapRouteData.start && mapRouteData.start.hall === h.id){ const me = cv.querySelector(`.mk[data-mid="${mapRouteData.start.id}"]`); if(me) me.insertAdjacentHTML("beforeend", '<em class="rstartb">출발</em>'); }
   const em = $("mapEmpty");
   if(em) em.innerHTML = (!placed.length && !S.marks.some(m=>m.hall===h.id))
     ? `<div class="mapempty"><strong>${esc(h.name)} 배치도가 비어 있어요</strong>${mapEdit ? "아래에서 부스를 눌러 놓거나 ‘자동 배치’를 눌러 보세요." : "‘배치 편집’을 눌러 부스를 놓아 보세요."}</div>` : "";
 }
 function renderMapBottom(){
   const el = $("mapbottom"); if(!el) return;
+  if(!mapEdit && UIP.mapRoute){
+    el.style.display = ""; el.classList.add("route"); const sc = el.querySelector(".rlist"), top = sc ? sc.scrollTop : 0;
+    el.innerHTML = routePanel();
+    const nl = el.querySelector(".rlist"); if(nl) nl.scrollTop = top;
+    const sel = $("rStart"); if(sel) sel.addEventListener("change", ()=>{ routeCfg().start[LIB.current] = sel.value; saveUIP(); renderMapItems(); renderMapBottom(); });
+    return;
+  }
+  el.classList.remove("route");
   if(!mapEdit){ el.style.display = "none"; el.innerHTML = ""; return; }
   el.style.display = "";
   let sel = `<div class="selbar"><span class="hint">끌어서 옮기고, 눌러서 고르세요. 빈 곳을 끌면 화면이 움직여요.</span></div>`;
@@ -4900,6 +5034,14 @@ document.addEventListener("click", async e=>{
     case "bulkMore": bulkAppend(5); bulkCheck(); break;
     case "bulkSave": bulkSave(); break;
     case "mapedit": mapEdit = !mapEdit; mapSel = null; renderMap(); break;
+    case "mroute": UIP.mapRoute = !UIP.mapRoute; saveUIP(); mv().init = false; renderMap(); if(UIP.mapRoute && mapRouteData && !mapRouteData.stops.length && !mapRouteData.unplaced.length) toast("남은 물품이 있는 부스가 없어요"); break;
+    case "rfold": UIP.routeFold = !UIP.routeFold; saveUIP(); renderMapBottom(); requestAnimationFrame(()=>applyView()); break;
+    case "rswap": { const o = routeCfg().order, k = +t.dataset.k; if(k > 0 && k < 3){ [o[k-1], o[k]] = [o[k], o[k-1]]; saveUIP(); renderMapItems(); renderMapBottom(); } break; }
+    case "rgo": {
+      const b = findBooth(t.dataset.id); if(!b || !b.pos) return;
+      if(b.pos.hall !== mapHall){ mapHall = b.pos.hall; renderMap(); requestAnimationFrame(()=>centerOn(b)); } else centerOn(b);
+      break;
+    }
     case "hall": if(mapHall !== t.dataset.hid){ mapHall = t.dataset.hid; mapSel = null; renderMap(); } break;
     case "halladd": {
       const h = {id:uid(), name:(S.halls.length+1)+"관", w:36, h:24};
