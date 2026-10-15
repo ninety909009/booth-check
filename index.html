@@ -373,7 +373,10 @@ main.mapmode{overflow:hidden}
 .mb.here,.mk.here{outline:3px solid var(--text);outline-offset:2px;z-index:4}
 .mb.tgt,.mk.tgt{outline:3px dashed var(--text);outline-offset:3px;z-index:4}
 .hpin{position:absolute;left:2px;top:2px;z-index:3;font-style:normal;font-size:10px;font-weight:800;background:var(--text);color:var(--card);border-radius:8px;padding:0 5px;line-height:15px;font-family:inherit}
-.fsvg line{stroke:var(--text);stroke-dasharray:none;stroke-width:3;opacity:.8}
+.rsvg polyline{fill:none;stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:7 6;opacity:.9}
+.fsvg polyline{stroke:var(--text);stroke-dasharray:none;stroke-width:4;opacity:.85}
+.rsvg polyline.straight{stroke-dasharray:2 6;opacity:.6}
+.fsteps{display:block;margin-top:1px;font-weight:700;color:var(--text);font-size:12.5px;letter-spacing:-.01em}
 .mk .rstartb{position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-style:normal;font-size:11px;font-weight:800;background:var(--text);color:var(--card);border-radius:8px;padding:1px 7px;white-space:nowrap;z-index:4}
 .selbar{display:flex;align-items:center;gap:8px;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--line);min-height:50px}
 .selbar .nm{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2343,37 +2346,129 @@ function routeInfo(b){
   return g ? {g, n, must: ls.some(L=>L.must)} : null;
 }
 /* 가까운 순으로 잇고(최근접), 2-opt로 꼬인 길을 풀어 줌. 시작점 고정·끝점 자유 */
+/* ---------- 통로 따라 걷기: 부스·구조물은 벽, 빈 칸으로만 이동 (덜 꺾이는 길 우선) ---------- */
+let WALK = null;
+function walkReset(){ WALK = {g:Object.create(null), f:Object.create(null), d:new Map(), a:Object.create(null)}; }
+function walkGrid(hid){
+  if(!WALK) walkReset();
+  if(hid in WALK.g) return WALK.g[hid];
+  const bd = contentBounds(hid); if(!bd) return (WALK.g[hid] = null);
+  const x0 = Math.floor(bd.x0) - 2, y0 = Math.floor(bd.y0) - 2, w = Math.ceil(bd.x1) + 2 - x0, h = Math.ceil(bd.y1) + 2 - y0;
+  if(w * h > 250000) return (WALK.g[hid] = null);
+  const block = new Uint8Array(w * h);
+  const fill = (ox, oy, ow, oh)=>{ for(let i = 0; i < ow; i++) for(let j = 0; j < oh; j++){ const x = ox + i - x0, y = oy + j - y0; if(x >= 0 && y >= 0 && x < w && y < h) block[y * w + x] = 1; } };
+  for(const b of S.booths) if(b.pos && b.pos.hall === hid){ const f = fp(b); fill(b.pos.x, b.pos.y, f.w, f.h); }
+  for(const m of S.marks) if(m.hall === hid) fill(m.x, m.y, m.w, m.h);
+  /* 배치도 바깥 테두리 칸은 조금 덜 선호 → 부스 줄 사이 통로로 다니게 */
+  const edge = new Uint8Array(w * h), bx0 = Math.floor(bd.x0) - x0, by0 = Math.floor(bd.y0) - y0, bx1 = Math.ceil(bd.x1) - x0, by1 = Math.ceil(bd.y1) - y0;
+  for(let y = 0; y < h; y++) for(let x = 0; x < w; x++) if(x < bx0 || y < by0 || x >= bx1 || y >= by1) edge[y * w + x] = 1;
+  return (WALK.g[hid] = {x0, y0, w, h, block, edge});
+}
+function refRect(r){ if(r.t === "b"){ const f = fp(r.o); return {h:r.o.pos.hall, x:r.o.pos.x, y:r.o.pos.y, w:f.w, hh:f.h}; } return {h:r.o.hall, x:r.o.x, y:r.o.y, w:r.o.w, hh:r.o.h}; }
+function adjFree(G, R){
+  const out = [], seen = new Set();
+  const add = (x, y, ex, ey)=>{ const gx = x - G.x0, gy = y - G.y0; if(gx < 0 || gy < 0 || gx >= G.w || gy >= G.h) return; const k = gy * G.w + gx; if(G.block[k] || seen.has(k)) return; seen.add(k); out.push({k, ex, ey}); };
+  for(let i = 0; i < R.w; i++){ add(R.x + i, R.y - 1, R.x + i + .5, R.y); add(R.x + i, R.y + R.hh, R.x + i + .5, R.y + R.hh); }
+  for(let j = 0; j < R.hh; j++){ add(R.x - 1, R.y + j, R.x, R.y + j + .5); add(R.x + R.w, R.y + j, R.x + R.w, R.y + j + .5); }
+  return out;
+}
+function hpush(H, k, p){ H.push([p, k]); let i = H.length - 1; while(i){ const j = (i - 1) >> 1; if(H[j][0] <= H[i][0]) break; [H[i], H[j]] = [H[j], H[i]]; i = j; } }
+function hpop(H){ const top = H[0], last = H.pop(); if(H.length){ H[0] = last; let i = 0; for(;;){ const l = 2 * i + 1, r = l + 1; let m = i; if(l < H.length && H[l][0] < H[m][0]) m = l; if(r < H.length && H[r][0] < H[m][0]) m = r; if(m === i) break; [H[i], H[m]] = [H[m], H[i]]; i = m; } } return top; }
+const WDX = [1, 0, -1, 0], WDY = [0, 1, 0, -1];
+function walkPath(a, b){
+  if(!a || !b) return null;
+  const ra = refRect(a), rb = refRect(b); if(ra.h !== rb.h) return null;
+  const G = walkGrid(ra.h); if(!G) return null;
+  const S0 = adjFree(G, ra), T = adjFree(G, rb); if(!S0.length || !T.length) return null;
+  const W = G.w, N = W * G.h, tm = new Map(T.map(t=>[t.k, t])), sm = new Map(S0.map(t=>[t.k, t]));
+  const hf = k=>{ const x = k % W + G.x0, y = (k / W | 0) + G.y0; return Math.max(rb.x - 1 - x, 0, x - rb.x - rb.w) + Math.max(rb.y - 1 - y, 0, y - rb.y - rb.hh); };
+  const dist = new Float64Array(N * 5).fill(Infinity), prev = new Int32Array(N * 5).fill(-1), H = [];
+  for(const t of S0){ const st = t.k * 5 + 4; dist[st] = 0; hpush(H, st, hf(t.k)); }
+  let end = -1, guard = 0;
+  while(H.length && guard++ < 400000){
+    const [pr, st] = hpop(H), k = st / 5 | 0, d = st % 5, cd = dist[st];
+    if(pr > cd + hf(k) + 1e-9) continue;
+    if(tm.has(k)){ end = st; break; }
+    const x = k % W, y = k / W | 0;
+    for(let nd = 0; nd < 4; nd++){
+      const nx = x + WDX[nd], ny = y + WDY[nd]; if(nx < 0 || ny < 0 || nx >= W || ny >= G.h) continue;
+      const nk = ny * W + nx; if(G.block[nk]) continue;
+      const c = cd + 1 + (d !== 4 && d !== nd ? 0.7 : 0) + (G.edge[nk] ? 0.4 : 0), ns = nk * 5 + nd;
+      if(c < dist[ns]){ dist[ns] = c; prev[ns] = st; hpush(H, ns, c + hf(nk)); }
+    }
+  }
+  if(end < 0) return null;
+  const cells = []; for(let st = end; st >= 0; st = prev[st]) cells.push(st / 5 | 0); cells.reverse();
+  const s0 = sm.get(cells[0]), t0 = tm.get(cells[cells.length - 1]);
+  const raw = [{x:s0.ex, y:s0.ey}, ...cells.map(k=>({x:k % W + G.x0 + .5, y:(k / W | 0) + G.y0 + .5})), {x:t0.ex, y:t0.ey}];
+  const pts = [raw[0]];
+  for(let i = 1; i < raw.length - 1; i++){ const a0 = pts[pts.length - 1], b0 = raw[i], c0 = raw[i + 1]; if(Math.abs((b0.x - a0.x) * (c0.y - b0.y) - (b0.y - a0.y) * (c0.x - b0.x)) > 1e-9) pts.push(b0); }
+  pts.push(raw[raw.length - 1]);
+  const segs = []; let len = 0;
+  for(let i = 1; i < pts.length; i++){
+    const dx = pts[i].x - pts[i-1].x, dy = pts[i].y - pts[i-1].y, l = Math.abs(dx) + Math.abs(dy); len += l;
+    const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "→" : "←") : (dy > 0 ? "↓" : "↑");
+    if(segs.length && segs[segs.length - 1].dir === dir) segs[segs.length - 1].l += l; else segs.push({dir, l});
+  }
+  return {pts, len, segs:segs.filter(x=>x.l >= 0.5)};
+}
+/* 한 곳에서 모든 칸까지의 통로 거리 (동선 순서·가까운 순 정렬용) */
+function walkField(r){
+  if(!WALK) walkReset();
+  const key = r.t + ":" + (r.o.id || r.id); if(key in WALK.f) return WALK.f[key];
+  const R = refRect(r), G = walkGrid(R.h); if(!G) return (WALK.f[key] = null);
+  const d = new Int32Array(G.w * G.h).fill(-1), q = [];
+  for(const t of adjFree(G, R)){ d[t.k] = 0; q.push(t.k); }
+  for(let qi = 0; qi < q.length; qi++){ const k = q[qi], x = k % G.w, y = k / G.w | 0; for(let nd = 0; nd < 4; nd++){ const nx = x + WDX[nd], ny = y + WDY[nd]; if(nx < 0 || ny < 0 || nx >= G.w || ny >= G.h) continue; const nk = ny * G.w + nx; if(G.block[nk] || d[nk] >= 0) continue; d[nk] = d[k] + 1; q.push(nk); } }
+  return (WALK.f[key] = {G, d});
+}
+function walkDist(a, b){
+  if(!WALK) walkReset();
+  const ka = a.t + ":" + (a.o.id || a.id), kb = b.t + ":" + (b.o.id || b.id), key = ka < kb ? ka + "|" + kb : kb + "|" + ka;
+  if(WALK.d.has(key)) return WALK.d.get(key);
+  const v = walkDist0(a, b, kb); WALK.d.set(key, v); return v;
+}
+function walkDist0(a, b, kb){
+  const ra = refRect(a), rb = refRect(b), ca = {x:ra.x + ra.w / 2, y:ra.y + ra.hh / 2}, cb = {x:rb.x + rb.w / 2, y:rb.y + rb.hh / 2}, eu = Math.hypot(ca.x - cb.x, ca.y - cb.y);
+  if(ra.h !== rb.h) return 10000 + eu;
+  const F = walkField(a); if(!F) return eu;
+  const adj = WALK.a[kb] || (WALK.a[kb] = adjFree(F.G, rb));
+  let m = Infinity; for(const t of adj) if(F.d[t.k] >= 0) m = Math.min(m, F.d[t.k]);
+  return m === Infinity ? 500 + eu * 3 : m + 1;
+}
+function pathSvg(pts, fr, attrs){ return `<polyline points="${pts.map(c=>((c.x - fr.ox) * CELL).toFixed(1) + "," + ((c.y - fr.oy) * CELL).toFixed(1)).join(" ")}" ${attrs}/>`; }
 function orderPts(pts, from){
   if(pts.length < 2) return pts.slice();
+  const D = (a, b)=> a && b ? walkDist(a.ref, b.ref) : 0;
   const left = pts.slice(), out = [];
   let cur = from;
   while(left.length){
     let bi = 0, bd = Infinity;
-    left.forEach((p,i)=>{ const d = cur ? pdist(cur, p.c) : (p.c.y * 1000 + p.c.x); if(d < bd){ bd = d; bi = i; } });
-    const p = left.splice(bi, 1)[0]; out.push(p); cur = p.c;
+    left.forEach((p,i)=>{ const d = cur ? D(cur, p) : (p.c.y * 1000 + p.c.x); if(d < bd){ bd = d; bi = i; } });
+    const p = left.splice(bi, 1)[0]; out.push(p); cur = p;
   }
-  const D = (a, b)=> a && b ? pdist(a, b) : 0;
-  for(let it = 0, better = true; better && it < 40; it++){
+  for(let it = 0, better = true; better && it < 30; it++){
     better = false;
     for(let i = 0; i < out.length - 1; i++){
-      const pi = i ? out[i-1].c : from;
+      const pi = i ? out[i-1] : from;
       for(let j = i + 1; j < out.length; j++){
-        const nj = j + 1 < out.length ? out[j+1].c : null;
-        if(D(pi, out[j].c) + D(out[i].c, nj) + 1e-9 < D(pi, out[i].c) + D(out[j].c, nj)){ out.splice(i, j - i + 1, ...out.slice(i, j + 1).reverse()); better = true; }
+        const nj = j + 1 < out.length ? out[j+1] : null;
+        if(D(pi, out[j]) + D(out[i], nj) + 1e-9 < D(pi, out[i]) + D(out[j], nj)){ out.splice(i, j - i + 1, ...out.slice(i, j + 1).reverse()); better = true; }
       }
     }
   }
   return out;
 }
 function computeRoute(){
+  walkReset();
   const cfg = routeCfg(), sm = routeStartMark(), hallIds = new Set(S.halls.map(h=>h.id));
-  let cur = sm ? markCenter(sm) : null;
+  let cur = sm ? {ref:{t:"m", o:sm}, c:markCenter(sm)} : null;
   const stops = [], unplaced = [];
   for(const g of cfg.order){
     const bs = []; for(const b of sortedBooths()){ const r = routeInfo(b); if(r && r.g === g) bs.push({b, r}); }
-    const placed = bs.filter(x=>x.b.pos && hallIds.has(x.b.pos.hall)).map(x=>({...x, c:boothCenter(x.b)}));
+    const placed = bs.filter(x=>x.b.pos && hallIds.has(x.b.pos.hall)).map(x=>({...x, c:boothCenter(x.b), ref:{t:"b", o:x.b}}));
     for(const seg of [placed.filter(x=>x.r.must), placed.filter(x=>!x.r.must)]){
-      for(const p of orderPts(seg, cur)){ stops.push({...p, g}); cur = p.c; }
+      for(const p of orderPts(seg, cur)){ stops.push({...p, g}); cur = p; }
     }
     for(const x of bs) if(!(x.b.pos && hallIds.has(x.b.pos.hall))) unplaced.push({...x, g});
   }
@@ -2381,14 +2476,16 @@ function computeRoute(){
 }
 function routeSvg(h, fr){
   const R = mapRouteData; if(!R || !R.stops.length) return "";
-  const px = c=>`${((c.x - fr.ox) * CELL).toFixed(1)},${((c.y - fr.oy) * CELL).toFixed(1)}`;
-  let prev = R.start ? markCenter(R.start) : null, segs = "";
-  for(const s of R.stops){
-    if(prev && prev.h === h.id && s.c.h === h.id) segs += `<line x1="${px(prev).split(",")[0]}" y1="${px(prev).split(",")[1]}" x2="${px(s.c).split(",")[0]}" y2="${px(s.c).split(",")[1]}" style="stroke:${ROUTE_C[s.g]}" marker-end="url(#rarr-${s.g})"/>`;
-    prev = s.c;
+  let prev = R.start ? {ref:{t:"m", o:R.start}, c:markCenter(R.start)} : null, segs = "";
+  for(const st of R.stops){
+    if(prev && prev.c.h === h.id && st.c.h === h.id){
+      const P = walkPath(prev.ref, st.ref), pts = P ? P.pts : [prev.c, st.c];
+      segs += pathSvg(pts, fr, `style="stroke:${ROUTE_C[st.g]}" marker-end="url(#rarr-${st.g})"${P ? "" : ' class="straight"'}`);
+    }
+    prev = st;
   }
   if(!segs) return "";
-  const mk = g=>`<marker id="rarr-${g}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:${ROUTE_C[g]}"/></marker>`;
+  const mk = g=>`<marker id="rarr-${g}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:${ROUTE_C[g]}"/></marker>`;
   return `<svg class="rsvg" width="${fr.w * CELL}" height="${fr.h * CELL}" aria-hidden="true"><defs>${mk("on")}${mk("free")}${mk("pre")}</defs>${segs}</svg>`;
 }
 /* ---------- 찾기: 내 위치(가장 가까운 부스·구조물) → 화장실·부스 찾기 ---------- */
@@ -2405,14 +2502,19 @@ function dirWord(a, b){
   const k = ((Math.round(Math.atan2(-dy, dx) / (Math.PI / 4)) % 8) + 8) % 8;
   return [["→","오른쪽"],["↗","오른쪽 위"],["↑","위쪽"],["↖","왼쪽 위"],["←","왼쪽"],["↙","왼쪽 아래"],["↓","아래쪽"],["↘","오른쪽 아래"]].map(([arrow, word])=>({arrow, word}))[k];
 }
+const SEGW = {"→":"오른쪽", "←":"왼쪽", "↑":"위", "↓":"아래"};
+/* a, b: refObj. 통로 길이와 꺾는 순서 */
 function distText(a, b){
-  if(a.h !== b.h){ const h = S.halls.find(x=>x.id===b.h); return {arrow:"⇢", txt:`${h ? h.name : "다른 관"}에 있어요`}; }
-  const d = Math.hypot(b.x - a.x, b.y - a.y), w = dirWord(a, b);
-  return {arrow:w.arrow, txt: w.word === "바로 여기" ? "바로 여기예요" : `${w.word}${josaRo(w.word)} 약 ${Math.max(1, Math.round(d))}칸`};
+  if(a.c.h !== b.c.h){ const h = S.halls.find(x=>x.id===b.c.h); return {arrow:"⇢", txt:`${h ? h.name : "다른 관"}에 있어요`, steps:""}; }
+  const w = dirWord(a.c, b.c), P = walkPath(a, b);
+  if(!P){ const d = Math.hypot(b.c.x - a.c.x, b.c.y - a.c.y); return {arrow:w.arrow, txt:`${w.word}${josaRo(w.word)} 직선 약 ${Math.max(1, Math.round(d))}칸`, steps:"통로를 찾지 못해 직선으로 보여 줘요"}; }
+  if(P.len < 1.5) return {arrow:"•", txt:"바로 옆이에요", steps:""};
+  return {arrow:w.arrow, txt:`걸어서 약 ${Math.round(P.len)}칸`, steps:P.segs.map(x=>`${SEGW[x.dir]} ${Math.max(1, Math.round(x.l))}`).join(" → ")};
 }
+function walkListDist(here, b){ return walkDist(here, {t:"b", o:b}); }
 function nearestMark(label, from){
   let best = null, bd = Infinity;
-  for(const m of S.marks){ if((m.label || "").trim() !== label) continue; const d = pdist(from, markCenter(m)); if(d < bd){ bd = d; best = m; } }
+  for(const m of S.marks){ if((m.label || "").trim() !== label) continue; const d = walkDist(from, {t:"m", o:m}); if(d < bd){ bd = d; best = m; } }
   return best;
 }
 function fitTwo(a, b){
@@ -2433,23 +2535,24 @@ function setFindTarget(r){
 }
 function findSvg(h, fr, a, b){
   if(!a || !b || a.c.h !== h.id || b.c.h !== h.id) return "";
-  const X = c=>((c.x - fr.ox) * CELL).toFixed(1), Y = c=>((c.y - fr.oy) * CELL).toFixed(1);
-  return `<svg class="rsvg fsvg" width="${fr.w * CELL}" height="${fr.h * CELL}" aria-hidden="true"><defs><marker id="farr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--text)"/></marker></defs><line x1="${X(a.c)}" y1="${Y(a.c)}" x2="${X(b.c)}" y2="${Y(b.c)}" marker-end="url(#farr)"/></svg>`;
+  const P = walkPath(a, b), pts = P ? P.pts : [a.c, b.c];
+  return `<svg class="rsvg fsvg" width="${fr.w * CELL}" height="${fr.h * CELL}" aria-hidden="true"><defs><marker id="farr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:var(--text)"/></marker></defs>${pathSvg(pts, fr, `marker-end="url(#farr)"${P ? "" : ' class="straight"'}`)}</svg>`;
 }
 function findPanel(){
+  walkReset();
   const here = hereRef(), t = refObj(findTarget);
   const labels = [...new Set(S.marks.map(m=>(m.label || "").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b, "ko"));
   let head;
   if(herePick || !here) head = `<div class="fhere pick"><span class="fpin">📍</span><span class="fht"><b>지금 가장 가까운 부스나 구조물을 배치도에서 누르세요</b><small>누른 곳을 내 위치로 정해요</small></span>${here ? `<button type="button" class="btn ghost sm" data-act="fpick">취소</button>` : ""}</div>`;
   else head = `<div class="fhere"><span class="fpin">📍</span><span class="fht"><small>내 위치</small><b>${esc(here.name)} 근처</b></span><button type="button" class="btn ghost sm" data-act="fpick">바꾸기</button></div>`;
   if(!here || herePick) return `<div class="fpanel">${head}</div>`;
-  const tgtLine = t ? (()=>{ const d = distText(here.c, t.c); return `<div class="ftgt"><span class="farrow">${d.arrow}</span><span class="fht"><b>${esc(t.name)}</b><small>${esc(d.txt)} <em>(배치도 기준)</em></small></span>${t.t === "b" ? `<button type="button" class="btn ghost sm" data-act="open" data-id="${t.id}">열기</button>` : ""}<button type="button" class="btn ghost sm" data-act="ftgt" data-t="" aria-label="찾기 끝내기">✕</button></div>`; })() : "";
+  const tgtLine = t ? (()=>{ const d = distText(here, t); return `<div class="ftgt"><span class="farrow">${d.arrow}</span><span class="fht"><b>${esc(t.name)}</b><small>${esc(d.txt)}${d.steps ? `<span class="fsteps">${esc(d.steps)}</span>` : ""}</small></span>${t.t === "b" ? `<button type="button" class="btn ghost sm" data-act="open" data-id="${t.id}">열기</button>` : ""}<button type="button" class="btn ghost sm" data-act="ftgt" data-t="" aria-label="찾기 끝내기">✕</button></div>`; })() : "";
   const q = findQ.trim();
   let list = S.booths.filter(b=>b.pos && S.halls.some(h=>h.id===b.pos.hall) && !(here.t === "b" && here.id === b.id));
   if(q) list = list.filter(b=>matchQuery(b, q.toLowerCase()) || matchQuery(b, q));
   else list = list.filter(b=>boothState(b) === "todo");
-  list = list.map(b=>({b, c:boothCenter(b)})).sort((x,y)=>pdist(here.c, x.c) - pdist(here.c, y.c)).slice(0, q ? 20 : 6);
-  const rows = list.map(x=>{ const d = distText(here.c, x.c); return `<div class="rstop" data-act="ftgt" data-t="b" data-id="${x.b.id}"><b class="farrow sm">${d.arrow}</b><span class="mini" style="--sc:${secColor(x.b.section)}">${esc(boothCode(x.b))}</span><span class="rnm">${esc(x.b.name || "이름 없는 부스")}<small>${esc(d.txt)}</small></span></div>`; }).join("");
+  list = list.map(b=>({b, c:boothCenter(b), wd:walkListDist(here, b)})).sort((x,y)=>x.wd - y.wd).slice(0, q ? 20 : 6);
+  const rows = list.map(x=>{ const w = dirWord(here.c, x.c), d = x.c.h !== here.c.h ? distText(here, refObj({t:"b", id:x.b.id})) : {arrow:w.arrow, txt: x.wd >= 500 ? `${w.word}${josaRo(w.word)} (통로 없음)` : `${w.word} · 걸어서 약 ${Math.max(1, Math.round(x.wd))}칸`}; return `<div class="rstop" data-act="ftgt" data-t="b" data-id="${x.b.id}"><b class="farrow sm">${d.arrow}</b><span class="mini" style="--sc:${secColor(x.b.section)}">${esc(boothCode(x.b))}</span><span class="rnm">${esc(x.b.name || "이름 없는 부스")}<small>${esc(d.txt)}</small></span></div>`; }).join("");
   return `<div class="fpanel">${head}${tgtLine}
     ${labels.length ? `<div class="fchips"><span class="lbl">가장 가까운</span>${labels.map(l=>`<button type="button" class="chip" data-act="ftgt" data-t="lbl" data-l="${esc(l)}">${esc(l)}</button>`).join("")}</div>` : ""}
     <input class="inp" id="findQ" value="${esc(findQ)}" placeholder="찾을 부스 (번호·이름·작가)" autocomplete="off" enterkeyhint="search">
@@ -2533,6 +2636,7 @@ function renderMapItems(){
   const placed = S.booths.filter(b=>b.pos && b.pos.hall===h.id);
   const route = UIP.mapRoute && !mapEdit, find = UIP.mapFind && !mapEdit && !route;
   const fHere = find ? hereRef() : null, fTgt = find ? refObj(findTarget) : null;
+  walkReset();
   mapRouteData = route ? computeRoute() : null;
   const rno = new Map(); if(route) mapRouteData.stops.forEach((x,k)=>rno.set(x.b.id, {n:k+1, g:x.g}));
   const booths = placed.map(b=>{
@@ -5155,7 +5259,7 @@ document.addEventListener("click", async e=>{
     case "fpick": herePick = !herePick; renderMapItems(); renderMapBottom(); break;
     case "ftgt": {
       const here = hereRef();
-      if(t.dataset.t === "lbl"){ if(!here) return; const m = nearestMark(t.dataset.l, here.c); if(m) setFindTarget({t:"m", id:m.id}); }
+      if(t.dataset.t === "lbl"){ if(!here) return; const m = nearestMark(t.dataset.l, here); if(m) setFindTarget({t:"m", id:m.id}); }
       else if(t.dataset.t === "b") setFindTarget({t:"b", id:t.dataset.id});
       else { findTarget = null; renderMapItems(); renderMapBottom(); }
       break;
