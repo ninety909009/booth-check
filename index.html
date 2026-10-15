@@ -1121,6 +1121,115 @@ a.anick svg{color:var(--pre)}
 :root[data-theme="dark"] .ifor{background:#22305A;color:#9DB8FF}
 :root[data-theme="dark"] .pxh > b{color:#9DB8FF}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* =====================================================================
+   2026-10 정리: 한 화면에 강조는 하나(부스 번호 도장), 나머지는 조용하게
+   - 테두리 1px, 모서리: 시트 22 · 카드 14 · 입력/버튼 10 · 칩 둥글게
+   - 한 줄에 색 하나: 물품 줄은 종류 색(선입금/현장/무료)만, 나머지 정보는 회색 글자
+   ===================================================================== */
+:root{ --line:#E6E8F0; --muted:#6B7090; --paper:#F5F6FA; --r-card:14px; --r-ctl:10px; }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --line:#363A5E; --muted:#A3A7C9; --paper:#1B1E39; } }
+:root[data-theme="dark"]{ --line:#363A5E; --muted:#A3A7C9; --paper:#1B1E39; }
+
+/* 헤더 */
+.ev-sub{letter-spacing:.01em}
+.stat{border-radius:10px}
+
+/* 공통 컨트롤: 두께·모서리 통일 */
+.chip{border-width:1px;height:34px;font-size:14px;font-weight:600}
+.chip[aria-pressed="true"]{font-weight:700}
+.chip.tagc{border-color:var(--line)}
+.search,.tblbtn{border-radius:var(--r-ctl)}
+.inp{border-width:1px;border-radius:var(--r-ctl)}
+.inp:focus{box-shadow:0 0 0 3px var(--pre-soft)}
+.btn{border-radius:var(--r-ctl)}
+.btn.ghost{background:var(--card);border-width:1px}
+.btn.danger{border-width:1px}
+.pick button{border-width:1px;border-radius:var(--r-ctl);font-size:15px}
+.tagedit{border-width:1px;border-radius:var(--r-ctl)}
+.seg{border-radius:12px}
+.seg button{border-radius:9px}
+.card{border-radius:var(--r-card);padding:16px}
+.card h2{font-size:16px;letter-spacing:-.01em}
+.evrow{border-width:1px}
+.artedit{border-width:1px}
+
+/* 부스 목록 */
+.ghead{margin:6px 2px 10px}
+.gletter{font-size:26px}
+.gline{height:1px;opacity:.45}
+.booth{border-radius:var(--r-card);padding:10px;gap:14px}
+.stamp{border-radius:10px}
+.bname{font-size:16px;letter-spacing:-.01em}
+.bmeta{gap:4px 6px}
+.bcount{font-size:19px}
+
+/* 기한·상태 칩: 평소엔 조용히, 급할 때만 색 */
+.dl{background:var(--paper);color:var(--muted);font-weight:600;border-radius:999px;padding:2px 8px;box-shadow:inset 0 0 0 1px var(--line)}
+.dl.soon{background:#FFF2C2;color:#7A5700;box-shadow:none;font-weight:700}
+.dl.late{background:var(--on-soft);color:var(--danger);box-shadow:none;font-weight:700}
+.dl.ok{background:var(--done-soft);color:var(--done);box-shadow:none}
+.tag{border-radius:999px;padding:2px 8px}
+
+/* 물품 줄 */
+.cgroup{border-radius:var(--r-card)}
+.chead{padding:9px 12px 9px 10px}
+.item{border-left-width:3px;padding:8px 12px 8px 6px;min-height:58px}
+.ck span{border-width:2.5px;width:30px;height:30px}
+.iname{font-size:15px;letter-spacing:-.01em}
+.isub{gap:0 8px;margin-top:2px}
+.isub > span{line-height:1.6}
+.ist{font-weight:700}
+.icat,.ipay,.ifor,.iart{background:none!important;box-shadow:none!important;color:var(--muted)!important;padding:0!important;border-radius:0!important;font-size:12px!important;font-weight:500!important}
+.ifor{color:#3A64D8!important;font-weight:600!important}
+.imay{border-radius:999px;padding:0 7px}
+.iprice{font-size:15px}
+
+/* 부스 시트 */
+.arow{border-radius:12px;padding:4px}
+.ainfo{border-radius:8px;height:36px;font-weight:600}
+.ainfo.awrite{background:var(--pre);color:#fff;border:0}
+.timebox{border-radius:var(--r-card)}
+.trow{padding:9px 0}
+.addhead h4{font-size:16px;letter-spacing:-.01em}
+.addbox{border-width:1px;border-radius:var(--r-card)}
+.agrp{padding:7px 10px 7px 12px}
+.agrp .rtags i{font-weight:600}
+.rcved{background:var(--paper)}
+
+/* 행사 탭 */
+.erow{padding:10px 2px}
+.exck{border-width:1.5px}
+
+/* 배치도 하단 패널 */
+.mapbottom{border-radius:16px 16px 0 0;box-shadow:0 -6px 20px -14px rgba(20,22,50,.35)}
+.rgrp{border-width:1px}
+
+/* 종류 고르기(선입금/현장/무료): 고른 것은 옅은 바탕+색 글자. 진한 채움은 ‘추가·저장’ 버튼에만 */
+.pick button.pre[aria-pressed="true"]{background:var(--pre-soft);border-color:var(--pre);color:var(--pre)}
+.pick button.on[aria-pressed="true"]{background:var(--on-soft);border-color:var(--on);color:var(--on)}
+.pick button.free[aria-pressed="true"]{background:#DDF4F0;border-color:#0E9F8F;color:#0B7D71}
+.maytog{border-width:1px;border-radius:var(--r-ctl)}
+[hidden]{display:none!important}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .pick button.free[aria-pressed="true"]{background:#173F3A;color:#5ED6C6} :root:not([data-theme="light"]) .ifor{color:#9DB8FF!important} :root:not([data-theme="light"]) .dl.soon{background:#4A3B10;color:#FFD95A} }
+:root[data-theme="dark"] .pick button.free[aria-pressed="true"]{background:#173F3A;color:#5ED6C6}
+:root[data-theme="dark"] .ifor{color:#9DB8FF!important}
+:root[data-theme="dark"] .dl.soon{background:#4A3B10;color:#FFD95A}
+.addbox .rowx .pick button{font-weight:700}
+
+/* 하단 탭 */
+.tab{font-weight:600}
+
+/* 넓은 화면: 내용 폭을 잡아 시선이 흩어지지 않게 */
+@media (min-width:900px){
+  .top > *, .toolbar > *, .pad{max-width:1200px;margin-left:auto;margin-right:auto}
+  .pad{padding-left:24px;padding-right:24px}
+  .stats{max-width:760px;margin-left:0}
+  .top > .stats{margin-left:max(0px, calc((100% - 1200px) / 2))}
+  .tabbar{grid-template-columns:repeat(5, minmax(0, 132px));justify-content:center;gap:8px}
+  .tab{flex-direction:row;gap:8px;font-size:14px}
+  .fab{right:max(24px, calc((100vw - 1200px) / 2 + 24px))}
+}
 </style>
 </head>
 <body>
@@ -1820,7 +1929,7 @@ function urgentBooths(){
 function renderTop(){
   document.body.classList.toggle("ro", isSub());
   const e = S.event, dd = ddayInfo(), t = totals();
-  const sub = [e.date && e.date.replace(/-/g,". "), e.time, e.place].filter(Boolean).join("  |  ");
+  const sub = [e.date && e.date.replace(/-/g,". "), e.time, e.place].filter(Boolean).join("\u2002·\u2002");
   document.getElementById("top").innerHTML = `
     <div class="top-row">
       <button class="evbtn" data-act="events" aria-label="행사 바꾸기"><span class="ev-name ${e.name?"":"unset"}" role="heading" aria-level="1">${e.name ? esc(e.name) : "행사 이름을 정해 주세요"}</span>${roleBadge(LIB.current)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>${LIB.list.length>1?`<span class="np" style="font-family:var(--body)">${LIB.list.length}개</span>`:""}</button>
@@ -1968,7 +2077,7 @@ function itemRow(b, x, o){
     <button class="ck" data-act="cycle" aria-label="${on ? `${esc(L.name)} 상태 바꾸기, 지금 ${stLabel(L)}` : `${esc(L.name)} 구매 리스트에 담기`}"><span>${ICON_CHECK}${ICON_PAY}</span></button>
     <button class="ibody" data-act="editItem" data-id="${b.id}">
       <div class="iname">${L.must?'<span class="star">★ </span>':""}${esc(L.name || "이름 없는 물품")}</div>
-      <div class="isub">${L.maybe?`<span class="imay">고민중</span>`:""}${L.forWho?`<span class="ifor">→ ${esc(L.forWho)}</span>`:""}${L.pay && L.type !== "free" ? `<span class="ipay ${L.pay}">${PAY_SHORT[L.pay]}</span>`:""}${an?`<span class="iart">${esc(an)}</span>`:""}${L.cat?`<span class="icat" style="${tagStyle(L.cat)}">${esc(L.cat)}</span>`:""}<span class="ist">${on ? `${typeLabel(L)} · ${o.step ? stLabel(L).split(" · ")[0] : stLabel(L)}` : typeLabel(L)}</span>${L.note?`<span class="inote">${esc(L.note)}</span>`:""}</div>
+      <div class="isub">${L.maybe?`<span class="imay">고민중</span>`:""}<span class="ist">${on ? `${typeLabel(L)} · ${o.step ? stLabel(L).split(" · ")[0] : stLabel(L)}` : typeLabel(L)}</span>${L.cat?`<span class="icat">${esc(L.cat)}</span>`:""}${an?`<span class="iart">${esc(an)}</span>`:""}${L.pay && L.type !== "free" ? `<span class="ipay ${L.pay}">${PAY_SHORT[L.pay]}</span>`:""}${L.forWho?`<span class="ifor">→ ${esc(L.forWho)}</span>`:""}${L.note?`<span class="inote">${esc(L.note)}</span>`:""}</div>
     </button>
     <div class="iprice">${L.type==="free" ? "무료" : won(on ? amt(L) : L.price)}${on && want > 1 && !o.step ? `<small>${L.type==="free" ? "" : won(L.price) + " "}× ${want}</small>` : ""}</div>
     ${o.step && on ? stepHTML(want) : ""}
@@ -3083,7 +3192,7 @@ function renderBoothSheet(){
     <div class="sh-body">
       ${b.artists.length ? `<div class="artists">${b.artists.map(a=>{
           const nk = esc(a.nick || (a.site ? siteLabel(a.site) : "작가"));
-          const nick = a.site ? `<a class="anick" href="${esc(a.site)}" target="_blank" rel="noopener noreferrer">${ICON_LINK}<span>${nk}</span><small>${esc(siteLabel(a.site))}</small></a>` : `<span class="anick"><span>${nk}</span></span>`;
+          const nick = a.site ? `<a class="anick" href="${esc(a.site)}" target="_blank" rel="noopener noreferrer">${ICON_LINK}<span>${nk}</span><small>${esc(/^@/.test(twShow(a.site)) ? twShow(a.site) : siteLabel(a.site))}</small></a>` : `<span class="anick"><span>${nk}</span></span>`;
           const imgs = a.imgs || [];
           return `<div class="arow">${nick}${a.info ? `<a class="ainfo" href="${esc(a.info)}" target="_blank" rel="noopener noreferrer">인포 ↗</a>` : ""}${imgs.length ? `<button type="button" class="ainfo awrite" data-act="infoWrite" data-bid="${b.id}" data-aid="${a.id}">✎ 보며 적기</button>` : ""}</div>${imgs.length ? `<div class="aimgs ${imgs.length===1?"one":""}">${imgThumbs(imgs, "aimg", b.id, a.id)}</div>` : ""}`; }).join("")}</div>` : ""}
       <div class="binfo">
@@ -3951,7 +4060,7 @@ function renderPeople(){
   }).join("") : "";
   main.innerHTML = `<div class="pad pplgrid">
     ${proxy.size ? `<h3 class="pxtitle mfull">대리구매</h3>${proxyHTML}<h3 class="pxtitle mfull">지인</h3>` : ""}
-    <div class="pplhead"><div class="pplsum">지인 <b>${ppl.length}</b>명  |  만남 <b>${metN}/${ppl.length}</b>  |  챙길 것 <b>${gD}/${gT}</b></div><button class="btn pre sm" data-act="padd">+ 지인 추가</button></div>
+    <div class="pplhead"><div class="pplsum">지인 <b>${ppl.length}</b>명&ensp;·&ensp;만남 <b>${metN}/${ppl.length}</b>&ensp;·&ensp;챙길 것 <b>${gD}/${gT}</b></div><button class="btn pre sm" data-act="padd">+ 지인 추가</button></div>
     ${sug.length ? `<div class="card pplhead" style="display:block"><h2>부스에 적어 둔 지인</h2><p class="desc">누르면 지인 목록에 추가되고 그 부스와 연결돼요.</p><div class="tagsug" style="margin:0">${sug.map(x=>`<button class="tg" style="--tc:#5C4300;--tb:#FFE98A" data-act="psug" data-nick="${esc(x.nick)}" data-bid="${x.b.id}">♥ ${esc(x.nick)} · ${esc(boothCode(x.b))}</button>`).join("")}</div></div>` : ""}
     ${ppl.length ? ppl.map(personCard).join("") : `<div class="empty"><strong>아직 지인이 없어요</strong>‘+ 지인 추가’로 만날 사람과 챙길 선물을 적어 보세요.</div>`}
   </div>`;
