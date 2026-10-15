@@ -1217,6 +1217,14 @@ a.anick svg{color:var(--pre)}
 :root[data-theme="dark"] .dl.soon{background:#4A3B10;color:#FFD95A}
 .addbox .rowx .pick button{font-weight:700}
 
+/* 배치 편집: 밀리는 부스는 부드럽게 */
+.mapview.editing .mb{transition:left .14s ease, top .14s ease}
+.mapview.editing .mb.dragging{transition:none}
+.mb.pushed{outline:2px dashed var(--pre);outline-offset:1px}
+.toast .tact{margin-left:12px;border:0;background:none;color:#FFE14D;font-weight:700;font-size:14px;padding:4px 2px;text-decoration:underline}
+.hostlink{display:inline-flex;align-items:center;gap:5px;color:var(--pre);font-weight:700;text-decoration:none}
+.hostlink svg{width:15px;height:15px}
+
 /* 하단 탭 */
 .tab{font-weight:600}
 
@@ -1281,13 +1289,14 @@ const ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 
 /* ---------- state ---------- */
 function defaultState(){
-  return {v:1, event:{name:"",date:"",time:"",place:"",info:"",schedule:[],extras:[]}, sections:["A","B","C","D"], booths:[], halls:[{id:uid(), name:"1관", w:36, h:24}], marks:[], cats:["스티커","만화 회지","글 회지","엽서","아크릴","포토카드","기타"], people:[]};
+  return {v:1, event:{name:"",date:"",time:"",place:"",info:"",host:"",schedule:[],extras:[]}, sections:["A","B","C","D"], booths:[], halls:[{id:uid(), name:"1관", w:36, h:24}], marks:[], cats:["스티커","만화 회지","글 회지","엽서","아크릴","포토카드","기타"], people:[]};
 }
 function normalize(d){
   const s = defaultState();
   if(!d || typeof d !== "object") return s;
   if(d.event && typeof d.event === "object"){
     for(const k of Object.keys(s.event)){ if(k !== "schedule" && k !== "extras") s.event[k] = typeof d.event[k] === "string" ? d.event[k].slice(0, k === "info" ? 3000 : 200) : ""; }
+    s.event.host = normSite(s.event.host) || "";
     if(Array.isArray(d.event.schedule)) s.event.schedule = d.event.schedule.slice(0,300).filter(x=>x&&typeof x==="object").map(x=>({
       id:sid(x.id)||uid(), time:/^\d{2}:\d{2}$/.test(str(x.time))?x.time:"", text:str(x.text||"").slice(0,200)
     }));
@@ -1695,7 +1704,7 @@ function stamp(b, cls){
 let toastT;
 function toast(msg){
   const t = document.getElementById("toast");
-  t.textContent = msg; t.classList.add("show");
+  t.textContent = msg; t.style.pointerEvents = ""; t.classList.add("show");
   clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove("show"), 2200);
 }
 function confirmBox(msg, yesLabel, danger){
@@ -2212,8 +2221,9 @@ const ICON_UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 function infoCardEvent(){
   const e = S.event;
   if(!infoEdit.has("event")){
-    const rows = [["이름", e.name], ["날짜", e.date ? e.date.replace(/-/g,". ") + (ddayInfo() ? "  (" + ddayInfo().t + ")" : "") : ""], ["시간", e.time], ["장소", e.place], ["안내", e.info]].filter(r=>r[1] && String(r[1]).trim());
-    return `<div class="card">${cardHead("행사 정보","event")}${rows.length ? rows.map(r=>`<div class="ivrow"><span class="k">${r[0]}</span><span class="v">${esc(r[1])}</span></div>`).join("") : `<p class="ivempty">아직 적지 않았어요. ‘편집’을 눌러 이름, 날짜, 장소를 적어 보세요.</p>`}</div>`;
+    const rows = [["이름", e.name], ["날짜", e.date ? e.date.replace(/-/g,". ") + (ddayInfo() ? "  (" + ddayInfo().t + ")" : "") : ""], ["시간", e.time], ["장소", e.place], ["주최", e.host], ["안내", e.info]].filter(r=>r[1] && String(r[1]).trim());
+    const hostV = ()=>{ const u = normSite(e.host); return u ? `<a class="hostlink" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${ICON_LINK}<span>${esc(/^@/.test(twShow(u)) ? twShow(u) : siteLabel(u))}</span></a>` : esc(e.host); };
+    return `<div class="card">${cardHead("행사 정보","event")}${rows.length ? rows.map(r=>`<div class="ivrow"><span class="k">${r[0]}</span><span class="v">${r[0] === "주최" ? hostV() : esc(r[1])}</span></div>`).join("") : `<p class="ivempty">아직 적지 않았어요. ‘편집’을 눌러 이름, 날짜, 장소를 적어 보세요.</p>`}</div>`;
   }
   return `<div class="card">${cardHead("행사 정보","event")}
       <p class="desc">입력하면 바로 저장돼요. 날짜를 넣으면 위에 D-day가 떠요.</p>
@@ -2223,6 +2233,7 @@ function infoCardEvent(){
         <label class="field"><span>시간</span><input class="inp" data-ev="time" value="${esc(e.time)}" placeholder="11:00 ~ 17:00"></label>
       </div>
       <label class="field"><span>장소</span><input class="inp" data-ev="place" value="${esc(e.place)}" placeholder="예: OO전시장 2홀"></label>
+      <label class="field"><span>주최 트위터(X)</span><input class="inp" data-ev="host" value="${esc(e.host ? (/^@/.test(twShow(e.host)) ? twShow(e.host) : e.host) : "")}" placeholder="@아이디 또는 https://x.com/아이디" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
       <label class="field" style="margin-bottom:0"><span>안내 메모</span><textarea class="inp" data-ev="info" placeholder="입장 방법, 굿즈 수령 위치 같은 공지">${esc(e.info)}</textarea></label>
     </div>`;
 }
@@ -2870,6 +2881,44 @@ function freeSpot(h, w, hh, cx, cy, occ){
   }
   return {x:cx, y:cy};
 }
+/* 배치 편집: 부스를 다른 부스 위에 놓으면 같은 줄의 부스를 옆으로 밀어 줌 (가로 부스는 좌우, 세로 부스는 위아래) */
+function pushPlan(mover, nx, ny){
+  const hid = mover.pos.hall, mf = fp(mover), horiz = mf.h <= mf.w;
+  const others = S.booths.filter(b=>b !== mover && b.pos && b.pos.hall === hid);
+  const pos = new Map(others.map(b=>[b, {x:b.pos.x, y:b.pos.y}]));
+  const rect = b=>{ const q = pos.get(b), f = fp(b); return {x:q.x, y:q.y, w:f.w, h:f.h}; };
+  const ov = (a, c)=>a.x < c.x + c.w && c.x < a.x + a.w && a.y < c.y + c.h && c.y < a.y + a.h;
+  const moved = new Set(); let guard = 0;
+  const shove = (b, r, dir)=>{
+    const q = pos.get(b), br = rect(b);
+    if(horiz) q.x = dir > 0 ? r.x + r.w : r.x - br.w; else q.y = dir > 0 ? r.y + r.h : r.y - br.h;
+    moved.add(b);
+    const nr = rect(b);
+    for(const c of others){ if(guard++ > 4000) return; if(c === b) continue; if(ov(nr, rect(c))) shove(c, nr, dir); }
+  };
+  const mr = {x:nx, y:ny, w:mf.w, h:mf.h};
+  const hits = others.filter(b=>ov(mr, rect(b)));
+  for(const b of hits){
+    const br = rect(b); if(!ov(mr, br)) continue;
+    const mc = horiz ? mr.x + mr.w / 2 : mr.y + mr.h / 2, bc = horiz ? br.x + br.w / 2 : br.y + br.h / 2;
+    shove(b, mr, mc <= bc ? 1 : -1);
+  }
+  return [...moved].map(b=>({b, x:pos.get(b).x, y:pos.get(b).y}));
+}
+function previewPush(g){
+  const fr = curFrame(), prev = g.plan || [];
+  const plan = pushPlan(g.obj, g.nx, g.ny), now = new Set(plan.map(x=>x.b));
+  for(const x of prev) if(!now.has(x.b)){ const el = document.querySelector(`.mb[data-bid="${x.b.id}"]`); if(el){ el.style.left = (x.b.pos.x - fr.ox) * CELL + 2 + "px"; el.style.top = (x.b.pos.y - fr.oy) * CELL + 2 + "px"; el.classList.remove("pushed"); } }
+  for(const x of plan){ const el = document.querySelector(`.mb[data-bid="${x.b.id}"]`); if(el){ el.style.left = (x.x - fr.ox) * CELL + 2 + "px"; el.style.top = (x.y - fr.oy) * CELL + 2 + "px"; el.classList.add("pushed"); } }
+  g.plan = plan;
+}
+function toastAct(msg, label, fn){
+  const t = document.getElementById("toast");
+  t.innerHTML = `<span>${esc(msg)}</span><button type="button" class="tact">${esc(label)}</button>`;
+  t.style.pointerEvents = "auto"; t.classList.add("show");
+  t.querySelector(".tact").onclick = ()=>{ t.classList.remove("show"); t.style.pointerEvents = ""; fn(); };
+  clearTimeout(toastT); toastT = setTimeout(()=>{ t.classList.remove("show"); t.style.pointerEvents = ""; }, 5000);
+}
 function placeBooth(b){
   const h = curHall();
   b.pos = {hall:h.id, x:0, y:0, rot:0};
@@ -2967,7 +3016,7 @@ function bindMap(){
       const o = mapG.obj, f = mapG.kind==="b" ? fp(o) : {w:o.w, h:o.h}, off = mapG.kind==="b" ? 2 : 0;
       const fr = curFrame();
       const nx = Math.round(mapG.x0 + dx/(CELL*V.z)), ny = Math.round(mapG.y0 + dy/(CELL*V.z));
-      if(nx !== mapG.nx || ny !== mapG.ny){ mapG.nx = nx; mapG.ny = ny; mapG.el.style.left = (nx-fr.ox)*CELL+off+"px"; mapG.el.style.top = (ny-fr.oy)*CELL+off+"px"; }
+      if(nx !== mapG.nx || ny !== mapG.ny){ mapG.nx = nx; mapG.ny = ny; mapG.el.style.left = (nx-fr.ox)*CELL+off+"px"; mapG.el.style.top = (ny-fr.oy)*CELL+off+"px"; if(mapG.kind === "b") previewPush(mapG); }
     } else if(mapG.type === "resize"){
       const o = mapG.obj;
       const nw = clamp(Math.round(mapG.w0 + dx/(CELL*V.z)), 1, 200), nh = clamp(Math.round(mapG.h0 + dy/(CELL*V.z)), 1, 200);
@@ -2988,7 +3037,15 @@ function bindMap(){
     if(e.type === "pointercancel"){ renderMapItems(); return; }
     if(!g.moved){ mapTap(g.it); return; }
     if(g.type === "move"){
-      if(g.nx != null){ if(g.kind==="b"){ g.obj.pos.x = g.nx; g.obj.pos.y = g.ny; } else { g.obj.x = g.nx; g.obj.y = g.ny; } save(); }
+      if(g.nx != null){
+        if(g.kind==="b"){
+          const plan = pushPlan(g.obj, g.nx, g.ny), undo = [{b:g.obj, x:g.obj.pos.x, y:g.obj.pos.y}, ...plan.map(x=>({b:x.b, x:x.b.pos.x, y:x.b.pos.y}))];
+          g.obj.pos.x = g.nx; g.obj.pos.y = g.ny;
+          for(const x of plan){ x.b.pos.x = x.x; x.b.pos.y = x.y; }
+          if(plan.length) setTimeout(()=>toastAct(`옆 부스 ${plan.length}개를 밀었어요`, "되돌리기", ()=>{ for(const u of undo) if(u.b.pos){ u.b.pos.x = u.x; u.b.pos.y = u.y; } save(); renderMapItems(); renderMapBottom(); }), 0);
+        } else { g.obj.x = g.nx; g.obj.y = g.ny; }
+        save();
+      }
       mapSel = {t:g.kind, id:g.obj.id}; renderMapItems(); renderMapBottom();
     } else if(g.type === "resize"){
       if(g.nw != null){ g.obj.w = g.nw; g.obj.h = g.nh; save(); }
@@ -3107,6 +3164,7 @@ function makeText(o){
   const when = [e.date, e.time].filter(Boolean).join(" ");
   if(when) L.push("일시: " + when);
   if(e.place) L.push("장소: " + e.place);
+  if(e.host) L.push("주최: " + twShow(e.host) + (twShow(e.host) !== e.host ? "  " + e.host : ""));
   if(e.info.trim()) L.push("", e.info.trim());
   const sch = sortedSch().filter(x=>x.time||x.text);
   if(sch.length){ L.push("", "[진행 시간표]"); for(const x of sch) L.push(`${x.time||"--:--"} ${x.text}`); }
@@ -4527,7 +4585,7 @@ function clone(o){ return o == null ? o : JSON.parse(JSON.stringify(o)); }
 function eqJ(a, b){ return JSON.stringify(a) === JSON.stringify(b); }
 function shareProj(st){
   const e = st.event;
-  return {event:{name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, schedule:clone(e.schedule), extras:(e.extras||[]).map(x=>({id:x.id, title:x.title, from:x.from, to:x.to, place:x.place, note:x.note, subs:(x.subs||[]).map(y=>({id:y.id, title:y.title, from:y.from, to:y.to, note:y.note}))}))},
+  return {event:{name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, host:e.host || "", schedule:clone(e.schedule), extras:(e.extras||[]).map(x=>({id:x.id, title:x.title, from:x.from, to:x.to, place:x.place, note:x.note, subs:(x.subs||[]).map(y=>({id:y.id, title:y.title, from:y.from, to:y.to, note:y.note}))}))},
     sections:[...st.sections], cats:[...st.cats], halls:clone(st.halls), marks:clone(st.marks),
     booths:st.booths.map(b=>({id:b.id, section:b.section, num:b.num, half:b.half||0, span:spanOf(b), name:b.name, memo:b.memo||"", tags:[...(b.tags||[])], recv:[...(b.recv||[])], rmemo:b.rmemo||"", pickup:b.pickup||"", pickupFrom:b.pickupFrom||"", openFrom:b.openFrom||"", openTo:b.openTo||"", times:clone(b.times||[]), pos:clone(b.pos||null),
       artists:(b.artists||[]).map(a=>({id:a.id, nick:a.nick||"", site:a.site||"", info:a.info||"", recv:[...(a.recv||[])], memo:a.memo||"", preFrom:a.preFrom||"", preTo:a.preTo||"", preToTime:a.preToTime||"", preLink:a.preLink||"", preKind:a.preKind==="survey" ? "survey" : "", imgs:[...(a.imgs||[])]})),
@@ -4561,7 +4619,7 @@ function mergeStrs(local, remote, prev, keepLocal){
 /* P(공유본)를 st에 덮어씀. 개인 정보(구매 체크·수량·메모·태그·지인)는 유지. keepLocal이면 원본에 없던 내 부스·물품도 유지 */
 function applyShared(st, P, prev, keepLocal){
   const e = P.event;
-  Object.assign(st.event, {name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, schedule:clone(e.schedule)});
+  Object.assign(st.event, {name:e.name, date:e.date, time:e.time, place:e.place, info:e.info, host:e.host || "", schedule:clone(e.schedule)});
   if(Array.isArray(e.extras)){
     const dn = new Set(); for(const x of (st.event.extras||[])){ if(x.done) dn.add(x.id); for(const y of (x.subs||[])) if(y.done) dn.add(x.id + "/" + y.id); }
     st.event.extras = e.extras.map(x=>({...clone(x), done:dn.has(x.id), subs:(x.subs||[]).map(y=>({...clone(y), done:dn.has(x.id + "/" + y.id)}))}));
@@ -5667,12 +5725,17 @@ let qT;
 document.addEventListener("input", e=>{
   const t = e.target;
   if(t.id === "q"){ clearTimeout(qT); qT = setTimeout(()=>{ query = t.value.trim(); renderBoothList(); }, 120); }
-  else if(t.dataset.ev){ S.event[t.dataset.ev] = t.value; save(); renderTop(); }
+  else if(t.dataset.ev){ if(t.dataset.ev !== "host"){ S.event[t.dataset.ev] = t.value; save(); renderTop(); } }
   else if(t.dataset.ex && t.dataset.ex !== "from" && t.dataset.ex !== "to"){ const o = exFind(t.dataset.xid, t.dataset.sub); if(o){ o[t.dataset.ex] = t.value.slice(0, t.dataset.ex === "note" ? (t.dataset.sub ? 300 : 1000) : 80); save(); } }
   else if(t.dataset.sch === "text"){ const x = S.event.schedule.find(y=>y.id===t.dataset.sid); if(x){ x.text = t.value; save(); renderTop(); } }
 });
 document.addEventListener("change", e=>{
   const t = e.target;
+  if(t.dataset.ev === "host"){
+    const v = t.value.trim(), u = v ? normSite(v) : "";
+    if(u === null){ toast("주최 계정은 @아이디나 https:// 주소로 적어 주세요"); t.value = S.event.host ? (/^@/.test(twShow(S.event.host)) ? twShow(S.event.host) : S.event.host) : ""; return; }
+    S.event.host = u; save(); t.value = u ? (/^@/.test(twShow(u)) ? twShow(u) : u) : ""; return;
+  }
   if(t.dataset.ex === "from" || t.dataset.ex === "to"){
     const x = exFind(t.dataset.xid, t.dataset.sub); if(!x) return;
     const k = t.dataset.ex, v = t.value.trim();
