@@ -490,7 +490,8 @@ function normItem(i) {
     price: Math.max(0, Math.round(num(i.price) || 0)),
     type,
     st: subs.length ? 0 : Math.max(0, Math.min(type === "pre" ? 2 : 1, Math.round(num(i.st) || 0))),
-    want: Math.max(1, i.want != null ? Math.round(num(i.want) || 0) : optQty(i)),
+    /* 0 = 무료 '안 받기'·구매 리스트에서 뺀 상태라 그대로 둠 (예전엔 1로 올려서 새로고침마다 풀렸음) */
+    want: i.want != null ? Math.max(0, Math.round(num(i.want) || 0)) : optQty(i),
     sample: normLink(i.sample) || "",
     artist: sid(i.artist),
     must: !!i.must,
@@ -498,7 +499,7 @@ function normItem(i) {
     cat: str(i.cat || "")
       .trim()
       .slice(0, 20),
-    maybe: (!!i.maybe || (i.want != null && !(num(i.want) > 0))) && !i.must,
+    maybe: !!i.maybe && !i.must,
     pay: ["cash", "transfer", "card"].includes(i.pay) ? i.pay : "",
     forWho: str(i.forWho || "")
       .trim()
