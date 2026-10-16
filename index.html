@@ -2,6 +2,8 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<!-- 보안 정책: 로그인(Google 팝업)·Firebase·외부 이미지 링크를 깨지 않는 범위만 막음. script-src까지 막으려면 로그인 동작을 실제로 확인한 뒤에 -->
+<meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1A1D3A">
 <link rel="manifest" href="manifest.webmanifest">
@@ -14,7 +16,7 @@
 <title>부스 체크</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet" crossorigin>
 <style>
 :root{
   --frame:#1A1D3A; --frame-2:#262A52; --frame-text:#FFFFFF; --frame-muted:#A9ADD6;
@@ -1291,8 +1293,9 @@ a.anick svg{color:var(--pre)}
 </div>
 <div class="ctx" id="ctx" role="menu"></div>
 
-<script>window.__bcCfg={state:"loading"};addEventListener("error",function(e){if(e&&e.filename&&/firebase-config\.js/.test(e.filename))window.__bcCfg.state="syntax";},true);</script>
-<script src="firebase-config.js" onload="if(window.__bcCfg.state==='loading')window.__bcCfg.state='ok'" onerror="window.__bcCfg.state='missing'"></script>
+<script>window.__bcCfg={state:"loading"};addEventListener("error",function(e){var t=e&&e.target;if(e&&e.filename&&/firebase-config\.js/.test(e.filename))window.__bcCfg.state="syntax";else if(t&&t.id==="fbCfgJs")window.__bcCfg.state="missing";},true);</script>
+<script src="firebase-config.js" id="fbCfgJs"></script>
+<script>if(window.__bcCfg.state==="loading")window.__bcCfg.state="ok";</script>
 <script>
 (function(){
 "use strict";
@@ -1437,6 +1440,8 @@ window.addEventListener("pagehide", ()=>{ if(saveT) flush(); });
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="hidden" && saveT) flush(); });
 
 /* ---------- helpers ---------- */
+/* 깨진 이미지 표시 (data-bad 달린 img가 못 열리면 감싼 칸에 bad 클래스) */
+document.addEventListener("error", e=>{ const t = e.target; if(t && t.tagName === "IMG" && t.hasAttribute("data-bad") && t.parentNode) t.parentNode.classList.add("bad"); }, true);
 let imeComposing = false;
 document.addEventListener("compositionstart", ()=>{ imeComposing = true; }, true);
 document.addEventListener("compositionend", ()=>{ imeComposing = false; }, true);
@@ -1472,7 +1477,7 @@ function normSite(v){
 function siteLabel(u){ const h = linkHost(u); if(/(^|\.)(x|twitter)\.com$/.test(h)) return "X"; if(/instagram\.com$/.test(h)) return "인스타"; if(/bsky\.app$/.test(h)) return "블스"; if(/pixiv\.net$/.test(h)) return "픽시브"; if(/postype\.com$/.test(h)) return "포스타입"; return h; }
 const ICON_LINK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>';
 function parseUrls(t){ return String(t||"").split(/\s+/).map(x=>normLink(x.replace(/[,，]+$/,""))).filter(Boolean); }
-function imgThumbs(urls, cls, bid, aid){ const g = esc(JSON.stringify(urls)); return urls.map((u,k)=>`<button type="button" class="${cls||"aimg"}" data-act="viewUrl" data-u="${esc(u)}" data-gal="${g}" data-gi="${k}" data-bid="${bid||""}" data-aid="${aid||""}" aria-label="이미지 크게 보기"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add('bad')"></button>`).join(""); }
+function imgThumbs(urls, cls, bid, aid){ const g = esc(JSON.stringify(urls)); return urls.map((u,k)=>`<button type="button" class="${cls||"aimg"}" data-act="viewUrl" data-u="${esc(u)}" data-gal="${g}" data-gi="${k}" data-bid="${bid||""}" data-aid="${aid||""}" aria-label="이미지 크게 보기"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-bad></button>`).join(""); }
 const VW = {list:[], k:0, bid:"", aid:""};
 function showViewer(){
   const v = document.getElementById("imgv"), im = document.getElementById("imgvImg"), n = VW.list.length, u = VW.list[VW.k];
@@ -1986,7 +1991,7 @@ function setView(v){
   view = v;
   main.classList.toggle("mapmode", v === "map");
   document.getElementById("app").classList.toggle("mapmode", v === "map");
-  document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected", String(t.dataset.tab===v)));
+  document.querySelectorAll(".tab").forEach(t=>{ const on = t.dataset.tab === v || (v === "info" && t.dataset.tab === lastTab); t.setAttribute("aria-selected", String(t.dataset.tab===v)); t.tabIndex = on ? 0 : -1; });
   document.querySelectorAll(".gear").forEach(t=>t.setAttribute("aria-pressed", String(v === "info")));
   fab.style.display = v === "booths" ? "" : "none";
   main.scrollTop = 0;
@@ -3557,7 +3562,7 @@ function renderBoothForm(){
       <div class="wide rchips">${RECV.map(([rk,rl])=>`<button type="button" class="rchip" data-rk="${k}" data-rv="${rk}" aria-pressed="${(a.recv||[]).includes(rk)}">${rl}</button>`).join("")}</div>
       ${(a.recv||[]).includes("custom") ? `<input class="inp wide" data-ak="${k}" data-af="memo" value="${esc(a.memo||"")}" placeholder="수령 방법 직접 적기" maxlength="200">` : ""}
       <div class="wide" style="font-size:12px;font-weight:700;color:var(--muted);margin-top:2px">인포 이미지 링크 (붙여 넣고 엔터, 여러 개 가능)</div>
-      <div class="imged wide">${(a.imgs||[]).map((u,j)=>`<span class="imgchip"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add('bad')"><button type="button" data-akimgdel="${k}:${j}" aria-label="이미지 빼기">×</button></span>`).join("")}<input data-ak="${k}" data-af="imgIn" value="${esc(a.imgIn||"")}" placeholder="https://… 이미지 주소" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>
+      <div class="imged wide">${(a.imgs||[]).map((u,j)=>`<span class="imgchip"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-bad><button type="button" data-akimgdel="${k}:${j}" aria-label="이미지 빼기">×</button></span>`).join("")}<input data-ak="${k}" data-af="imgIn" value="${esc(a.imgIn||"")}" placeholder="https://… 이미지 주소" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>
       <div class="wide kindrow"><span>기간 종류</span><div class="pick kindpick">${[["","선입금"],["survey","수요조사"]].map(([v,l])=>`<button type="button" data-kk="${k}" data-kind="${v}" aria-pressed="${(a.preKind||"")===v}">${l}</button>`).join("")}</div></div>
       <div class="wide" style="font-size:12px;font-weight:700;color:var(--muted);margin-top:2px">${a.preKind==="survey" ? "수요조사" : "선입금"} 기간 (시작일 · 마감일 · 마감 시각) · 폼 링크</div>
       <div class="perrow wide"><input class="inp" type="date" data-ak="${k}" data-af="preFrom" value="${esc(a.preFrom||"")}" aria-label="시작일"><input class="inp" type="date" data-ak="${k}" data-af="preTo" value="${esc(a.preTo||"")}" aria-label="마감일"><input class="inp stime" data-ak="${k}" data-af="preToTime" value="${esc(a.preToTime||"")}" placeholder="23:59" inputmode="numeric" maxlength="5" aria-label="마감 시각"></div>
@@ -4597,7 +4602,7 @@ const FB_RAW = (()=>{
   return c && typeof c === "object" ? c : null;
 })();
 const CFG_KEY = "boothcheck.fbcfg";
-const CFG_FIELDS = ["apiKey","authDomain","projectId","storageBucket","messagingSenderId","appId","measurementId"];
+const CFG_FIELDS = ["apiKey","authDomain","projectId","storageBucket","messagingSenderId","appId","measurementId","appCheckKey"];
 function cfgPick(c){ const o = {}; for(const k of CFG_FIELDS) if(typeof c[k] === "string" && c[k].trim() && c[k].length <= 200) o[k] = c[k].trim(); return o; }
 /* firebase-config.js를 잠깐 못 읽거나(느린 인터넷·옛 캐시) 빈 파일이 올라가도 로그인이 풀리지 않게, 마지막으로 성공한 설정을 이 기기에 기억 */
 const FB_SAVED = (()=>{ if(location.protocol === "file:") return null; try{ const c = JSON.parse(lsGet(CFG_KEY) || "null"); return cfgOk(c) ? cfgPick(c) : null; }catch(e){ return null; } })();
@@ -4840,7 +4845,10 @@ async function clInit(){
   try{
     const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
     const [ap, A, F] = await Promise.all([import(base + "firebase-app.js"), import(base + "firebase-auth.js"), import(base + "firebase-firestore.js")]);
-    const app = ap.initializeApp(FB_CFG);
+    const {appCheckKey, ...fbOpts} = FB_CFG;
+    const app = ap.initializeApp(fbOpts);
+    /* App Check(선택): firebase-config.js에 appCheckKey(reCAPTCHA v3 사이트 키)가 있을 때만. 실패해도 앱은 계속 돌아감 */
+    if(appCheckKey){ try{ const AC = await import(base + "firebase-app-check.js"); AC.initializeAppCheck(app, {provider:new AC.ReCaptchaV3Provider(appCheckKey), isTokenAutoRefreshEnabled:true}); }catch(e){ try{ console.warn("부스 체크: App Check를 켜지 못함", e); }catch(e2){} } }
     CL.A = A; CL.F = F; CL.auth = A.getAuth(app); CL.db = F.getFirestore(app);
   }catch(e){ CL.failed = true; clRefreshUI(); return; }
   clListenPub();
@@ -5400,6 +5408,13 @@ function lockMenu(el, list){
   return out.filter((x,k,a)=>!(x && x.sep && (k === a.length - 1 || (a[k+1] && a[k+1].sep))));
 }
 
+/* 탭바 키보드 이동: ←/→, Home/End (화면 낭독기 탭 목록 규칙) */
+document.querySelector(".tabbar").addEventListener("keydown", e=>{
+  const tabs = [...document.querySelectorAll(".tabbar .tab")], k = tabs.indexOf(document.activeElement); if(k < 0) return;
+  const n = e.key === "ArrowRight" ? (k + 1) % tabs.length : e.key === "ArrowLeft" ? (k - 1 + tabs.length) % tabs.length : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : -1;
+  if(n < 0) return;
+  e.preventDefault(); if(sh) closeSheet(); setView(tabs[n].dataset.tab); tabs[n].focus();
+});
 /* ---------- global click delegation ---------- */
 document.addEventListener("click", async e=>{
   const t = e.target.closest("[data-act],[data-tab]"); if(!t) return;
