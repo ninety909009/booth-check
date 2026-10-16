@@ -22,3 +22,26 @@
 - 공유 안 되는 것: 무료 배포를 뺀 구매 리스트(물품·가격), 모든 물품의 체크·수량, 지인, 구독자의 ‘내 메모’.
 - 원본에서 부스를 지워도, 구독자가 물품·메모를 남긴 부스는 그 사람의 부스로 남아요.
 - 카카오톡 안의 브라우저에서는 Google 로그인이 막혀 있어요. 구독(BCL)은 로그인 없이 돼요.
+
+## 개발
+
+앱은 여전히 `index.html` 하나로 돌아가요. 아래 도구는 개발할 때만 써요(배포에는 필요 없어요).
+
+```bash
+npm install          # 처음 한 번
+npm test             # Playwright 테스트 (Chromium)
+npm run serve        # http://localhost:8123 에서 확인
+npm run format       # Prettier로 정리 (커밋 전에)
+```
+
+- 테스트는 `tests/`에 있어요. 주소에 `?bctest`를 붙여 열 때만 내부 함수가 `window.__bcTest`로 노출돼서, 테스트가 그걸로 순수 함수(병합·코드 해석·윗치폼 붙여넣기 등)를 확인해요.
+- 큰 포맷 커밋은 `git blame`에서 빼 두었어요: `git config blame.ignoreRevsFile .git-blame-ignore-revs`
+- `sw.js`를 바꾸면 맨 위 `VER`(예: `bc-v3`)를 올려 주세요. 옛 저장본이 지워져요.
+
+## Firebase 운영 메모
+
+- `firestore.rules`를 바꾸면 Firebase 콘솔 → Firestore → 규칙에 붙여 넣거나 `firebase deploy --only firestore:rules`로 올려요.
+- `firebase-config.js`의 apiKey는 공개돼도 되는 값이에요. 대신 남용을 막으려면:
+  1. **App Check (선택)**: Firebase 콘솔 → App Check에서 웹 앱에 reCAPTCHA v3를 등록하고, 받은 사이트 키를 `firebase-config.js`에 `appCheckKey: "..."`로 넣어요. 키가 없으면 지금처럼 동작해요. 넣은 뒤 콘솔에서 Firestore **적용(Enforce)**을 켜야 실제로 막혀요(켜기 전에 콘솔 지표로 정상 요청이 통과하는지 먼저 확인).
+  2. **API 키 제한**: Google Cloud 콘솔 → API 및 서비스 → 사용자 인증 정보 → 해당 키 → 웹사이트 제한에 배포 주소(예: `https://<아이디>.github.io/*`)와 `https://checkthebooth.firebaseapp.com/*`를 넣어요.
+  3. **예산 알림**: Google Cloud 콘솔 → 결제 → 예산 및 알림.

@@ -3,51 +3,109 @@
    - Firebase SDK·글꼴: 한 번 받아 두면 저장본을 써요.
    - firebase-config.js: 항상 인터넷에서 새로 받아요. 인터넷이 아예 안 될 때만 저장본을 써요.
    - 데이터 통신(로그인·동기화)은 건드리지 않아요. */
-const VER = "bc-v2";
-const CORE = ["./", "./index.html", "./firebase-config.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
+const VER = "bc-v3"; // v3: 글꼴 CSS를 crossorigin으로 받게 바꿔서, 예전(opaque) 저장본을 비움
+const CORE = [
+  "./",
+  "./index.html",
+  "./firebase-config.js",
+  "./manifest.webmanifest",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./apple-touch-icon.png",
+];
 
-self.addEventListener("install", e=>{
-  e.waitUntil(caches.open(VER).then(c=>Promise.all(CORE.map(u=>c.add(u).catch(()=>{})))).then(()=>self.skipWaiting()));
+self.addEventListener("install", (e) => {
+  e.waitUntil(
+    caches
+      .open(VER)
+      .then((c) => Promise.all(CORE.map((u) => c.add(u).catch(() => {}))))
+      .then(() => self.skipWaiting())
+  );
 });
-self.addEventListener("activate", e=>{
-  e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k.startsWith("bc-") && k !== VER).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));
+self.addEventListener("activate", (e) => {
+  e.waitUntil(
+    caches
+      .keys()
+      .then((ks) => Promise.all(ks.filter((k) => k.startsWith("bc-") && k !== VER).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
 
-function fromCache(req){
-  return caches.match(req, {ignoreSearch:true}).then(m=>m || (req.mode === "navigate" ? caches.match("./index.html").then(x=>x || caches.match("./")) : undefined));
+function fromCache(req) {
+  return caches
+    .match(req, { ignoreSearch: true })
+    .then((m) => m || (req.mode === "navigate" ? caches.match("./index.html").then((x) => x || caches.match("./")) : undefined));
 }
-function networkFirst(req){
-  return new Promise(resolve=>{
+function networkFirst(req) {
+  return new Promise((resolve) => {
     let done = false;
-    const finish = r=>{ if(!done && r){ done = true; resolve(r); } };
-    const timer = setTimeout(()=>{ fromCache(req).then(finish); }, 2500);
-    fetch(req).then(res=>{
-      if(res && res.ok){ const copy = res.clone(); caches.open(VER).then(c=>c.put(req, copy)); }
-      clearTimeout(timer); finish(res);
-    }).catch(()=>{
-      clearTimeout(timer);
-      fromCache(req).then(m=>{ if(!done){ done = true; resolve(m || Response.error()); } });
-    });
+    const finish = (r) => {
+      if (!done && r) {
+        done = true;
+        resolve(r);
+      }
+    };
+    const timer = setTimeout(() => {
+      fromCache(req).then(finish);
+    }, 2500);
+    fetch(req)
+      .then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(VER).then((c) => c.put(req, copy));
+        }
+        clearTimeout(timer);
+        finish(res);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        fromCache(req).then((m) => {
+          if (!done) {
+            done = true;
+            resolve(m || Response.error());
+          }
+        });
+      });
   });
 }
-function configFirst(req){
-  return fetch(req, {cache:"no-cache"}).then(res=>{
-    if(res && res.ok){ const copy = res.clone(); caches.open(VER).then(c=>c.put(req, copy)); }
-    return res;
-  }).catch(()=>fromCache(req).then(m=>m || Response.error()));
+function configFirst(req) {
+  return fetch(req, { cache: "no-cache" })
+    .then((res) => {
+      if (res && res.ok) {
+        const copy = res.clone();
+        caches.open(VER).then((c) => c.put(req, copy));
+      }
+      return res;
+    })
+    .catch(() => fromCache(req).then((m) => m || Response.error()));
 }
-function cacheFirst(req){
-  return caches.match(req).then(m=>m || fetch(req).then(res=>{
-    if(res && (res.ok || res.type === "opaque")){ const copy = res.clone(); caches.open(VER).then(c=>c.put(req, copy)); }
-    return res;
-  }));
+function cacheFirst(req) {
+  /* cors 요청에 opaque 저장본을 주면 브라우저가 거부하므로 그런 저장본은 건너뜀 */
+  return caches.match(req).then((m) =>
+    m && !(m.type === "opaque" && req.mode === "cors")
+      ? m
+      : fetch(req).then((res) => {
+          if (res && (res.ok || res.type === "opaque")) {
+            const copy = res.clone();
+            caches.open(VER).then((c) => c.put(req, copy));
+          }
+          return res;
+        })
+  );
 }
-self.addEventListener("fetch", e=>{
+self.addEventListener("fetch", (e) => {
   const req = e.request;
-  if(req.method !== "GET") return;
+  if (req.method !== "GET") return;
   const u = new URL(req.url);
-  if(u.origin === self.location.origin){ e.respondWith(/firebase-config\.js$/.test(u.pathname) ? configFirst(req) : networkFirst(req)); return; }
-  if((u.hostname === "www.gstatic.com" && u.pathname.startsWith("/firebasejs/")) || u.hostname === "fonts.googleapis.com" || u.hostname === "fonts.gstatic.com"){
+  if (u.origin === self.location.origin) {
+    e.respondWith(/firebase-config\.js$/.test(u.pathname) ? configFirst(req) : networkFirst(req));
+    return;
+  }
+  if (
+    (u.hostname === "www.gstatic.com" && u.pathname.startsWith("/firebasejs/")) ||
+    u.hostname === "fonts.googleapis.com" ||
+    u.hostname === "fonts.gstatic.com"
+  ) {
     e.respondWith(cacheFirst(req));
   }
 });
