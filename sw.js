@@ -3,7 +3,7 @@
    - Firebase SDK·글꼴: 한 번 받아 두면 저장본을 써요.
    - firebase-config.js: 항상 인터넷에서 새로 받아요. 인터넷이 아예 안 될 때만 저장본을 써요.
    - 데이터 통신(로그인·동기화)은 건드리지 않아요. */
-const VER = "bc-v3"; // v3: 글꼴 CSS를 crossorigin으로 받게 바꿔서, 예전(opaque) 저장본을 비움
+const VER = "bc-v4"; // v4: 글꼴 CSS를 다시 예전 방식(crossorigin 없이)으로 받음. v3 저장본 정리
 const CORE = [
   "./",
   "./index.html",
