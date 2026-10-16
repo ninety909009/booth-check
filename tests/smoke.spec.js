@@ -111,3 +111,34 @@ test("체크 목록을 다시 그려도 보던 부스가 같은 자리에 있다
   await page.waitForTimeout(200);
   expect(await anchor()).toBe(before);
 });
+
+test("무료 나눔 '안 받기'(수량 0)가 새로고침 뒤에도 유지된다", async ({ page }) => {
+  await openApp(page);
+  await page.evaluate(() => {
+    const T = window.__bcTest;
+    const S = T.normalize({
+      booths: [
+        {
+          id: "b1",
+          section: "A",
+          num: "1",
+          items: [
+            { id: "f1", name: "무료 엽서", type: "free", want: 1 },
+            { id: "o1", name: "회지", type: "on", price: 5000, want: 2 },
+          ],
+        },
+      ],
+    });
+    S.booths[0].items[0].want = 0; // 안 받기
+    S.booths[0].items[1].want = 0; // 구매 리스트에서 뺌
+    T.setS(S);
+    T.flush();
+  });
+  await page.reload();
+  await page.waitForSelector("#top");
+  const items = await page.evaluate(() => window.__bcTest.getS().booths[0].items.map((i) => [i.id, i.want, i.maybe]));
+  expect(items).toEqual([
+    ["f1", 0, false],
+    ["o1", 0, false],
+  ]);
+});
