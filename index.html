@@ -1225,6 +1225,22 @@ a.anick svg{color:var(--pre)}
 .hostlink{display:inline-flex;align-items:center;gap:5px;color:var(--pre);font-weight:700;text-decoration:none}
 .hostlink svg{width:15px;height:15px}
 
+/* 물품 여러 개 고르기 */
+#bItems.selecting .item{cursor:pointer;user-select:none;-webkit-user-select:none}
+#bItems.selecting .item .ck,#bItems.selecting .item .grip,#bItems.selecting .item .step{display:none}
+#bItems.selecting .item .ibody{pointer-events:none}
+.iselck{flex:none;width:26px;height:26px;margin:0 6px 0 4px;border-radius:7px;border:2px solid var(--line);background:var(--card);display:grid;place-items:center}
+.item.picked .iselck{background:var(--pre);border-color:var(--pre)}
+.item.picked .iselck::after{content:"";width:10px;height:6px;border:2.5px solid #fff;border-top:0;border-right:0;transform:translateY(-1px) rotate(-45deg)}
+.item.picked{background:var(--pre-soft)}
+#iselBar:empty{display:none}
+.sh-body:has(#bItems.selecting) #addBox{display:none}
+.iselbar{position:sticky;bottom:0;z-index:4;display:flex;align-items:center;gap:6px;margin-top:10px;padding:8px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);box-shadow:0 -6px 18px -12px rgba(20,22,50,.35)}
+.iselbar .iseln{flex:1;min-width:0;font-size:13px;color:var(--muted);white-space:nowrap}
+.iselbar .iseln b{color:var(--text);font-size:15px}
+.iselbar .btn.sm{height:38px;padding:0 10px}
+.item.off.free .iname{color:var(--muted)}
+
 /* 하단 탭 */
 .tab{font-weight:600}
 
@@ -2086,7 +2102,7 @@ function itemRow(b, x, o){
     <button class="ck" data-act="cycle" aria-label="${on ? `${esc(L.name)} 상태 바꾸기, 지금 ${stLabel(L)}` : `${esc(L.name)} 구매 리스트에 담기`}"><span>${ICON_CHECK}${ICON_PAY}</span></button>
     <button class="ibody" data-act="editItem" data-id="${b.id}">
       <div class="iname">${L.must?'<span class="star">★ </span>':""}${esc(L.name || "이름 없는 물품")}</div>
-      <div class="isub">${L.maybe?`<span class="imay">고민중</span>`:""}<span class="ist">${on ? `${typeLabel(L)} · ${o.step ? stLabel(L).split(" · ")[0] : stLabel(L)}` : typeLabel(L)}</span>${L.cat?`<span class="icat">${esc(L.cat)}</span>`:""}${an?`<span class="iart">${esc(an)}</span>`:""}${L.pay && L.type !== "free" ? `<span class="ipay ${L.pay}">${PAY_SHORT[L.pay]}</span>`:""}${L.forWho?`<span class="ifor">→ ${esc(L.forWho)}</span>`:""}${L.note?`<span class="inote">${esc(L.note)}</span>`:""}</div>
+      <div class="isub">${L.maybe?`<span class="imay">고민중</span>`:""}<span class="ist">${on ? `${typeLabel(L)} · ${o.step ? stLabel(L).split(" · ")[0] : stLabel(L)}` : (L.type === "free" ? "무료 · 안 받기" : typeLabel(L))}</span>${L.cat?`<span class="icat">${esc(L.cat)}</span>`:""}${an?`<span class="iart">${esc(an)}</span>`:""}${L.pay && L.type !== "free" ? `<span class="ipay ${L.pay}">${PAY_SHORT[L.pay]}</span>`:""}${L.forWho?`<span class="ifor">→ ${esc(L.forWho)}</span>`:""}${L.note?`<span class="inote">${esc(L.note)}</span>`:""}</div>
     </button>
     <div class="iprice">${L.type==="free" ? "무료" : won(on ? amt(L) : L.price)}${on && want > 1 && !o.step ? `<small>${L.type==="free" ? "" : won(L.price) + " "}× ${want}</small>` : ""}</div>
     ${o.step && on ? stepHTML(want) : ""}
@@ -3205,6 +3221,7 @@ let sheetOpenedAt = 0;
 function openSheet(state){ sh = state; sheetOpenedAt = Date.now(); renderSheet(); requestAnimationFrame(()=>{ sheet.classList.add("show"); scrim.classList.add("show"); }); }
 function closeSheet(){
   if(!sh) return;
+  ISEL = null;
   sheet.classList.remove("show"); scrim.classList.remove("show");
   if(document.activeElement && sheet.contains(document.activeElement)) document.activeElement.blur();
   sh = null; flush(); rerenderSoft(); clFlushPending();
@@ -3273,8 +3290,9 @@ function renderBoothSheet(){
             ${others.map(x=>`<div class="trow"><span class="tl">${esc(x.label || "시간")}</span><b>${rangeText(x.time, x.end) || "--:--"}</b>${x.end ? chip(x.time, x.end) : chip("", x.time)}</div>`).join("")}</div>`; })()}
       </div>
       <div class="sums" id="bSums"></div>
-      <div class="addhead"><h4>구매 리스트</h4><span id="bCount" class="hc"></span><button class="btn ghost sm" data-act="wfOpen">윗치폼</button><button class="btn ghost sm" data-act="toggleAdd" id="addTog">${UIP.addOpen ? "접기" : "+ 추가"}</button></div>
+      <div class="addhead"><h4>구매 리스트</h4><span id="bCount" class="hc"></span><button class="btn ghost sm" data-act="iselOn" id="iselBtn">선택</button><button class="btn ghost sm" data-act="wfOpen">윗치폼</button><button class="btn ghost sm" data-act="toggleAdd" id="addTog">${UIP.addOpen ? "접기" : "+ 추가"}</button></div>
       <div class="itembox" id="bItems"></div>
+      <div id="iselBar"></div>
       <div class="addbox" id="addBox" ${UIP.addOpen ? "" : "hidden"}>
         ${b.artists.length > 1 ? `<select class="inp" id="nArt" aria-label="작가" style="margin-bottom:8px">${artOptions(b, curArt)}</select>` : ""}
         <div class="addtop">
@@ -3338,6 +3356,53 @@ function renderBoothSheet(){
 }
 let lastType = "on", lastCat = "", lastMaybe = false, lastArt = {bid:"", aid:""};
 function parsePrice(v){ const n = parseInt(String(v).replace(/[^\d]/g,""),10); return isNaN(n) ? 0 : n; }
+/* ---------- 물품 여러 개 골라서 한꺼번에 바꾸기·지우기 ---------- */
+let ISEL = null; // {bid, ids:Set}
+function iselItems(b){ return ISEL ? b.items.filter(i=>ISEL.ids.has(i.id)) : []; }
+function iselDraw(b){
+  const box = document.getElementById("bItems"), bar = document.getElementById("iselBar"), btn = document.getElementById("iselBtn");
+  if(btn){ btn.textContent = ISEL ? "완료" : "선택"; btn.classList.toggle("pre", !!ISEL); btn.classList.toggle("ghost", !ISEL); }
+  if(!box || !bar) return;
+  box.classList.toggle("selecting", !!ISEL);
+  if(!ISEL){ bar.innerHTML = ""; return; }
+  for(const ids of [...ISEL.ids]) if(!b.items.some(i=>i.id===ids)) ISEL.ids.delete(ids);
+  box.querySelectorAll(".item[data-iid]").forEach(r=>{
+    if(!r.querySelector(".iselck")) r.insertAdjacentHTML("afterbegin", '<span class="iselck" aria-hidden="true"></span>');
+    const on = ISEL.ids.has(r.dataset.iid); r.classList.toggle("picked", on); r.setAttribute("aria-selected", String(on));
+  });
+  const n = ISEL.ids.size, all = b.items.length && n === b.items.length;
+  bar.innerHTML = `<div class="iselbar"><button type="button" class="btn ghost sm" data-act="iselAll">${all ? "모두 해제" : "모두 고르기"}</button><span class="iseln"><b>${n}</b>개 골랐어요</span><button type="button" class="btn ghost sm" data-act="iselEdit" ${n ? "" : "disabled"}>바꾸기</button><button type="button" class="btn danger sm" data-act="iselDel" ${n ? "" : "disabled"}>삭제</button></div>`;
+}
+function iselMenu(b){
+  const its = iselItems(b), n = its.length, open = its.filter(i=>!lockedItem(i)), paid = its.filter(i=>i.type !== "free"), free = its.filter(i=>i.type === "free");
+  const done = msg=>changed(msg);
+  const all = [{id:"", nick:"공통"}, ...b.artists];
+  return [
+    {title:`물품 ${n}개 한꺼번에 바꾸기`, sub: open.length < n ? `공유받은 물품 ${n - open.length}개는 판매 형태·종류·작가를 바꿀 수 없어요` : ""},
+    open.length ? {icon:"tag", label:"판매 형태", items:()=>[["pre","선입금"],["on","현장 구매"],["free","무료 배포"]].map(([t,l])=>({label:l, on:open.every(i=>i.type===t), fn:()=>{
+      open.forEach(i=>{ i.type = t; if(t !== "pre"){ if(i.st > 1) i.st = 1; (i.subs||[]).forEach(x=>{ if(x.st > 1) x.st = 1; }); } if(t === "free") i.pay = ""; });
+      done(`${open.length}개를 ${l}${josaRo(l)} 바꿨어요`); }}))} : null,
+    open.length ? {icon:"tag", label:"상품 종류", items:()=>["", ...S.cats].map(c=>({label:c || "종류 없음", on:open.every(i=>(i.cat||"")===c), fn:()=>{ open.forEach(i=>{ i.cat = c; }); done(`${open.length}개의 종류를 ‘${c || "종류 없음"}’${josaRo(c || "종류 없음")} 바꿨어요`); }}))} : null,
+    paid.length ? {icon:"won", label:"결제 수단", items:()=>[["","미정"],["cash","현금"],["transfer","계좌이체"],["card","카드"]].map(([v,l])=>({label:l, on:paid.every(i=>(i.pay||"")===v), fn:()=>{ paid.forEach(i=>{ i.pay = v; }); done(`${paid.length}개의 결제 수단: ${l}`); }}))} : null,
+    b.artists.length > 1 && open.length ? {icon:"user", label:"작가", items:()=>all.map(a=>({label:a.nick || "작가", on:open.every(i=>(i.artist||"")===a.id), fn:()=>{ open.forEach(i=>{ i.artist = a.id; }); done(`${open.length}개 → ${a.nick || "작가"}`); }}))} : null,
+    {chips:[
+      {label:"★ 꼭 사기", cls:"must", on:()=>its.every(i=>i.must), fn:()=>{ const v = !its.every(i=>i.must); its.forEach(i=>{ i.must = v; if(v) i.maybe = false; }); changed(); }},
+      {label:"고민중", cls:"may", on:()=>its.every(i=>i.maybe), fn:()=>{ const v = !its.every(i=>i.maybe); its.forEach(i=>{ i.maybe = v; if(v) i.must = false; }); changed(); }}
+    ]},
+    {icon:"user", label:"대리구매", hint: its.every(i=>(i.forWho||"")===(its[0].forWho||"")) ? (its[0].forWho || "") : "여러 명", fn:async ()=>{
+      const v = await promptBox(`물품 ${n}개를 부탁한 사람을 적어 주세요.\n비우면 내 물품이 돼요.`, "닉네임", {value:its.every(i=>i.forWho===its[0].forWho) ? (its[0].forWho || "") : "", yes:"저장", allowEmpty:true});
+      if(v === null) return; its.forEach(i=>{ i.forWho = String(v).trim().slice(0,30); }); done(v.trim() ? `${n}개 → ${v.trim()}` : `${n}개를 내 물품으로 바꿨어요`); }},
+    free.length ? (free.some(i=>i.want) ? {icon:"eyeoff", label:`무료 배포 ${free.length}개 안 받기`, fn:()=>{ free.forEach(i=>{ i.want = 0; i.st = 0; }); done(`무료 배포 ${free.length}개를 안 받기로 했어요`); }}
+      : {icon:"check", label:`무료 배포 ${free.length}개 받기`, fn:()=>{ free.forEach(i=>{ i.want = Math.max(1, i.want); i.st = 0; }); done(`무료 배포 ${free.length}개를 받기로 했어요`); }}) : null
+  ];
+}
+document.addEventListener("click", e=>{
+  if(!ISEL || !sh || sh.kind !== "booth") return;
+  const row = e.target.closest("#bItems .item[data-iid]"); if(!row) return;
+  e.preventDefault(); e.stopPropagation();
+  const id = row.dataset.iid; if(ISEL.ids.has(id)) ISEL.ids.delete(id); else ISEL.ids.add(id);
+  const b = findBooth(sh.id); if(b) iselDraw(b);
+}, true);
 function renderBoothItems(){
   const b = findBooth(sh && sh.id); if(!b) return;
   const st = boothStats(b), box = document.getElementById("bItems"); if(!box) return;
@@ -3366,10 +3431,12 @@ function renderBoothItems(){
     html = (has || !ro ? `<div class="rbarbox"><div class="agrp rbar"><span class="an">수령</span>${rcvHead(b, null, ro)}</div>${ro ? "" : rcvEditor(b, null)}</div>` : "") + rows(b.items);
   }
   const anyImg = b.artists.some(a=>(a.imgs||[]).length);
+  if(ISEL && ISEL.bid !== b.id) ISEL = null;
   box.innerHTML = (b.items.length || b.artists.length) ? html : html + `<div class="empty">살 물품을 아래에서 추가하거나<br>${anyImg ? "인포 이미지를 보면서 적어 보세요." : "‘윗치폼’으로 한꺼번에 넣어 보세요."}</div>`;
   document.getElementById("bSums").innerHTML = `<div class="p">선입금 ${st.pre}개<b>${won(st.preAmt)}</b></div><div class="o">현장 ${st.on}개<b>${won(st.onAmt)}</b></div>${st.maybe ? `<div class="mb2">고민중 ${st.maybe}개 (합계에서 빠져 있어요)<b>${won(st.maybeAmt)}</b></div>` : ""}`;
   const bpb = payBreakdown(linesOf(b));
   const bpt = [["cash","현금"],["transfer","이체"],["card","카드"]].filter(([k])=>bpb[k] > 0);
+  iselDraw(b);
   if(bpt.length) document.getElementById("bSums").insertAdjacentHTML("beforeend", `<div class="paysum">남은 결제 ${bpt.map(([k,l])=>`${l} <b>${won(bpb[k])}</b>`).join(" · ")}${bpb[""] ? ` · 미정 <b>${won(bpb[""])}</b>` : ""}</div>`);
   document.getElementById("bCount").textContent = boothCountText(b);
 }
@@ -3664,7 +3731,8 @@ function itemMenu(b, i, el){
   return [
     {title:i.name || "물품", sub:`${boothCode(b)} · ${typeLabel(i)} · ${i.type==="free" ? "무료" : won(i.price)} · ${stLabel(L)}`},
     {icon:"check", label:`${next}${josaRo(next)} 표시`, primary:1, fn:()=>{ const ck = el.querySelector(".ck"); if(ck) cycle(b.id, i.id, "", ck); }},
-    {step:{n:()=>i.want, label:n=>`수량 ${n}개`, fn:d=>{ i.want = Math.max(1, i.want + d); changed(); }}},
+    i.want ? {step:{n:()=>i.want, label:n=>`수량 ${n}개`, fn:d=>{ i.want = Math.max(1, i.want + d); changed(); }}} : null,
+    i.type === "free" ? (i.want ? {icon:"eyeoff", label:"안 받기", fn:()=>{ i.want = 0; i.st = 0; changed(`‘${i.name}’은 안 받기로 했어요`); }} : {icon:"check", label:"받기로 바꾸기", fn:()=>{ i.want = 1; i.st = 0; changed(`‘${i.name}’을 받기로 했어요`); }}) : null,
     {sep:1},
     {icon:"memo", label:"메모", hint:i.note ? "있음" : "", fn:()=>editNote(b, i, null)},
     flagChips(i),
@@ -5339,6 +5407,17 @@ document.addEventListener("click", async e=>{
     case "ckfold": { UIP.ckBar = !UIP.ckBar; saveUIP(); t.setAttribute("aria-expanded", String(UIP.ckBar)); const o = document.getElementById("ckOpts"); if(o) o.hidden = !UIP.ckBar; ckFoldInfo(); break; }
     case "wfOpen": openSheet({kind:"wf", id:sh.id, text:""}); break;
     case "rescue": doRescue(t.dataset.k); break;
+    case "iselOn": { const b = findBooth(sh && sh.id); if(!b) return; ISEL = ISEL ? null : {bid:b.id, ids:new Set()}; renderBoothItems(); if(ISEL) toast("고칠 물품을 누르세요"); break; }
+    case "iselAll": { const b = findBooth(sh && sh.id); if(!b || !ISEL) return; ISEL.ids = ISEL.ids.size === b.items.length ? new Set() : new Set(b.items.map(i=>i.id)); iselDraw(b); break; }
+    case "iselEdit": { const b = findBooth(sh && sh.id); if(!b || !ISEL || !ISEL.ids.size) return; const r = t.getBoundingClientRect(); openCtx(r.left, r.top, iselMenu(b)); break; }
+    case "iselDel": {
+      const b = findBooth(sh && sh.id); if(!b || !ISEL || !ISEL.ids.size) return;
+      const its = iselItems(b), ok = its.filter(i=>!lockedItem(i)), skip = its.length - ok.length;
+      if(!ok.length){ toast("공유받은 물품은 지울 수 없어요. ‘바꾸기’에서 안 받기로 바꿀 수 있어요"); return; }
+      if(!(await confirmBox(`물품 ${ok.length}개를 지울까요?${skip ? `\n공유받은 물품 ${skip}개는 빼고 지워요.` : ""}`, "삭제", true))) return;
+      const del = new Set(ok.map(i=>i.id)); b.items = b.items.filter(i=>!del.has(i.id)); ok.forEach(i=>ISEL.ids.delete(i.id));
+      changed(`물품 ${ok.length}개를 지웠어요`); break;
+    }
     case "wfAll": {
       const v = t.dataset.on === "1";
       for(const r of sh.rows||[]){ if(v && r.sold) continue; r.on = v; r.qty = v ? (r.qty || 1) : 0; }
