@@ -843,6 +843,12 @@
         margin-bottom: 12px;
         overflow: hidden;
       }
+      /* 체크 탭 속도: 화면 밖 부스 카드는 배치 계산을 미룸(휴대폰 기준 몇 배 빨라짐).
+         여러 열(.mas)은 카드 높이를 재서 나누므로 제외 */
+      #checkList:not(.mas) > .cgroup {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 260px;
+      }
       .chead {
         width: 100%;
         display: flex;
@@ -8933,8 +8939,26 @@
               : `<div class="empty"><strong>체크할 물품이 없어요</strong>부스 탭에서 부스를 열고 살 물품을 추가하면 여기에 모여요.</div>`;
             return;
           }
+          /* 다시 그려도 보던 부스가 같은 자리에 있게 (화면 밖 카드는 높이가 어림값이라 그냥 두면 위치가 밀림) */
+          const top0 = main.getBoundingClientRect().top;
+          const anc = [...el.querySelectorAll(".cgroup")].find((g) => g.getBoundingClientRect().bottom > top0);
+          const ancId = anc && anc.querySelector(".chead").dataset.id,
+            ancY = anc && anc.getBoundingClientRect().top;
           el.innerHTML = blocks.join("");
           masonry(el);
+          const h = ancId && el.querySelector(`.chead[data-id="${ancId}"]`);
+          if (h) {
+            /* 위쪽 카드가 다음 화면에서 실제 높이로 바뀌므로 두 번 더 맞춤 */
+            const g = h.closest(".cgroup"),
+              fix = () => {
+                if (g.isConnected) main.scrollTop += g.getBoundingClientRect().top - ancY;
+              };
+            fix();
+            requestAnimationFrame(() => {
+              fix();
+              requestAnimationFrame(fix);
+            });
+          }
         }
         /* 카드 쌓기: 넓은 화면에서 카드를 가장 짧은 열에 차례로 넣어 빈칸 없이 채움 */
         const MAS_MIN = 380,
