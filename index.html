@@ -2816,6 +2816,11 @@ function renderMapBottom(){
   }
   el.classList.remove("route");
   if(!mapEdit){ el.style.display = "none"; el.innerHTML = ""; return; }
+  const act = document.activeElement;
+  if(act && act.id === "mkLabel" && el.contains(act) && mapSel && mapSel.t === "m"){
+    const tr = el.querySelector(".trayhead b"); const un = sortedBooths().filter(b=>!b.pos).length; if(tr) tr.textContent = `안 놓은 부스 ${un}`;
+    return;
+  }
   el.style.display = "";
   let sel = `<div class="selbar"><span class="hint">끌어서 옮기고, 눌러서 고르세요. 빈 곳을 끌면 화면이 움직여요.</span></div>`;
   if(mapSel && mapSel.t==="b"){
@@ -4610,7 +4615,7 @@ function cfgProblem(){
   return "";
 }
 const CL = {on:!!FB_CFG, failed:false, A:null, F:null, auth:null, db:null, user:null, authKnown:false, syncing:false, inflight:0, lastSync:0, err:"",
-  userT:{}, pubT:{}, pubBusy:{}, pubAgain:{}, pubInfo:{}, unsubUser:null, unsubPub:null, pubKey:"", pending:{}, ed:{}, bigWarned:false, gen:0};
+  userT:{}, pubT:{}, pubBusy:{}, pubAgain:{}, pubInfo:{}, hold:new Set(), unsubUser:null, unsubPub:null, pubKey:"", pending:{}, ed:{}, bigWarned:false, gen:0};
 const CODE_ABC = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const PB_PREFIX = "boothcheck.pb.";
 function genCode(n){ const a = new Uint8Array(n); crypto.getRandomValues(a); return Array.from(a, x=>CODE_ABC[x % 32]).join(""); }
@@ -4871,6 +4876,7 @@ async function clLogout(){
 }
 function clOnUser(u){
   CL.authKnown = true;
+  CL.hold = new Set();
   CL.user = u ? {uid:u.uid, dname:u.displayName || "", name:u.displayName || (u.email ? u.email.split("@")[0] : ""), email:u.email || "", photo:u.photoURL || ""} : null;
   CL.gen++;
   if(CL.unsubUser){ try{ CL.unsubUser(); }catch(e){} CL.unsubUser = null; }
@@ -4904,9 +4910,22 @@ async function clStartUserSync(){
     const remote = []; snap.forEach(d=>remote.push({id:d.id, ...d.data()}));
     for(const r of remote) await clApplyUserDoc(r);
     if(gen !== CL.gen) return;
-    const ids = new Set(remote.map(r=>r.id));
-    if(remote.some(r=>!r.del)) for(const e of LIB.list.slice()) if(!ids.has(e.id) && !e.cu && !e.link && isBlank(loadEvent(e.id))) removeLocal(e.id);
-    for(const e of LIB.list) if(!ids.has(e.id) || (e.mod||0) > (e.cu||0)) clQueueUser(e.id, 0);
+    const ids = new Set(remote.map(r=>r.id)), liveRemote = remote.some(r=>!r.del);
+    if(liveRemote) for(const e of LIB.list.slice()) if(!ids.has(e.id) && !e.cu && !e.link && isBlank(loadEvent(e.id))) removeLocal(e.id);
+    const localOnly = LIB.list.filter(e=>!ids.has(e.id) && !e.cu && !e.acct && !isBlank(loadEvent(e.id)));
+    if(liveRemote && localOnly.length){
+      const names = localOnly.slice(0, 3).map(e=>"‘" + (loadEvent(e.id).event.name || "이름 없는 행사") + "’").join(", ") + (localOnly.length > 3 ? ` 외 ${localOnly.length - 3}개` : "");
+      const ch = await choiceBox(`이 기기에만 있는 행사가 ${localOnly.length}개 있어요.\n${names}\n\n계정에 있는 행사와 합칠까요?\n취소하면 이 기기에만 두고, 다음에 로그인할 때 다시 물어봐요.`,
+        [{label:"계정에 합치기", v:"merge", cls:"pre"}, {label:"이 기기에서 지우기", v:"drop", cls:"danger"}]);
+      if(gen !== CL.gen) return;
+      if(ch === "drop" && await confirmBox(`이 기기에만 있는 행사 ${localOnly.length}개를 지울까요?\n계정에는 없는 내용이라 되돌릴 수 없어요. 필요하면 먼저 설정 → ‘백업 파일 저장’을 해 두세요.`, "지우기", true)){
+        if(gen !== CL.gen) return;
+        for(const e of localOnly) removeLocal(e.id);
+        toast(`이 기기의 행사 ${localOnly.length}개를 지웠어요`);
+      } else if(ch !== "merge"){ for(const e of localOnly) CL.hold.add(e.id); }
+      renderTop(); if(sh && sh.kind === "events") renderEvents();
+    }
+    for(const e of LIB.list) if(!CL.hold.has(e.id) && (!ids.has(e.id) || (e.mod||0) > (e.cu||0))) clQueueUser(e.id, 0);
     CL.unsubUser = CL.F.onSnapshot(CL.F.collection(CL.db, "users", CL.user.uid, "ev"), qs=>{
       if(gen !== CL.gen) return;
       qs.docChanges().forEach(ch=>{ if(ch.type === "removed" || ch.doc.metadata.hasPendingWrites) return; clApplyUserDoc({id:ch.doc.id, ...ch.doc.data()}); });
@@ -4925,10 +4944,10 @@ async function clApplyUserDoc(r){
   if(ent0 && ent0.acct && ent0.acct !== CL.user.uid) return;
   if(r.del){ if(ent0 && (ent0.mod||0) <= (r.upd||0)){ removeLocal(id); if(sh && sh.kind === "events") renderEvents(); } return; }
   if(ent0 && (r.upd||0) <= (ent0.cu||0)) return;
-  if(id === LIB.current && (sh || viewerOpen())){ CL.pending[id] = r; return; }
+  if(id === LIB.current && (sh || viewerOpen() || uiBusy())){ CL.pending[id] = r; return; }
   let payload; try{ payload = await zDec(r); }catch(e){ return; }
   if(!CL.user) return;
-  if(id === LIB.current && (sh || viewerOpen())){ CL.pending[id] = r; return; }
+  if(id === LIB.current && (sh || viewerOpen() || uiBusy())){ CL.pending[id] = r; return; }
   if(id === LIB.current && saveT) flush();
   let ent = entOf(id);
   if(ent && (r.upd||0) <= (ent.cu||0)) return;
@@ -4966,7 +4985,7 @@ function clQueueUser(id, ms){
   CL.userT[id] = setTimeout(()=>{ delete CL.userT[id]; clPushUser(id); }, ms == null ? 1500 : ms);
 }
 async function clPushUser(id){
-  if(BROKEN.has(id)) return;
+  if(BROKEN.has(id) || CL.hold.has(id)) return;
   const ent = entOf(id); if(!ent || !CL.user || !CL.db) return;
   if(ent.acct && ent.acct !== CL.user.uid) return;
   if(id === LIB.current && saveT) flush();
@@ -5050,14 +5069,24 @@ async function clOnPub(id, code, snap){
   }
   clRefreshUI();
 }
+/* 글자를 입력하는 중에 다른 기기·공유 업데이트가 오면, 입력칸이 다시 그려져 포커스가 풀리지 않게 화면 갱신을 미룸 */
+let uiDeferred = false;
+function uiBusy(){ const a = document.activeElement; return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !/^(checkbox|radio|file|button)$/.test(a.type || "") && (main.contains(a) || sheet.contains(a))); }
+function uiRefreshRemote(){
+  if(uiBusy()){ uiDeferred = true; return; }
+  uiDeferred = false;
+  renderTop();
+  if(sh && sh.kind === "booth") renderSheet();
+  rerenderSoft();
+  if(view === "info") renderInfo();
+}
+document.addEventListener("focusout", ()=>{ setTimeout(()=>{ if(uiBusy()) return; if(uiDeferred) uiRefreshRemote(); if(!sh && Object.keys(CL.pending || {}).length) clFlushPending(); }, 60); });
 function applyTo(id, P, prev, keepLocal){
   if(id === LIB.current){
     srcCache = {b:null};
     applyShared(S, P, prev, keepLocal);
     CL.quiet = true; try{ flush(); }finally{ CL.quiet = false; }
-    if(sh && sh.kind === "booth") renderSheet();
-    rerenderSoft();
-    if(view === "info" && !(document.activeElement && main.contains(document.activeElement) && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))) renderInfo();
+    uiRefreshRemote();
   } else {
     const st = loadEvent(id); applyShared(st, P, prev, keepLocal);
     const js = JSON.stringify(st); lsSet(EV_PREFIX + id, js);
