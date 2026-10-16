@@ -1241,6 +1241,71 @@ a.anick svg{color:var(--pre)}
 .iselbar .btn.sm{height:38px;padding:0 10px}
 .item.off.free .iname{color:var(--muted)}
 
+/* ---------- 부스 화면 (A안: 한 장 정리형) ---------- */
+.sh-head .bmeta{gap:4px 8px}
+.shbtns{display:flex;gap:6px;flex:none;align-self:flex-start}
+.ibtn2{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);display:grid;place-items:center;padding:0;flex:none}
+.ibtn2 svg{width:18px;height:18px}
+.ibtn2.sm{width:36px;height:36px}
+.ibtn2.on{width:auto;padding:0 12px;background:var(--pre);border-color:var(--pre);color:#fff;font-weight:700;font-size:13.5px}
+.bstrip:empty{display:none}
+.bstripg{display:grid;background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);margin-bottom:6px}
+.bstripg > div{padding:9px 12px;min-width:0}
+.bstripg > div + div{border-left:1px solid var(--line)}
+.bstripg small{display:block;font-size:11.5px;color:var(--muted);font-weight:500;white-space:nowrap}
+.bstripg b{font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bstripg .sp small::before,.bstripg .so small::before,.bstripg .sf small::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:1px}
+.bstripg .sp small::before{background:var(--pre)} .bstripg .so small::before{background:var(--on)} .bstripg .sf small::before{background:#0E9F8F}
+.bstripn{margin:0 4px 6px;font-size:12px;color:var(--muted);line-height:1.5}
+.bstrip{margin-bottom:8px}
+.binfo2{background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);margin-bottom:16px;overflow:hidden}
+.ir{display:flex;align-items:center;gap:10px;padding:9px 12px;min-height:46px}
+.ir + .ir{border-top:1px solid var(--line)}
+.ir .ic{flex:none;width:18px;height:18px;color:var(--muted);display:grid;place-items:center}
+.ir .ic svg{width:18px;height:18px}
+.ir .k{flex:none;width:52px;font-size:12.5px;color:var(--muted);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ir .v{flex:1;min-width:0;font-size:14.5px;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.ir .v small{display:block;font-size:12.5px;font-weight:500;color:var(--muted);margin-top:1px}
+.ir .rt{flex:none;display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:55%}
+.ir .alink{color:var(--text);text-decoration:none;border-bottom:1.5px solid var(--line)}
+.lk{display:inline-flex;align-items:center;height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12.5px;font-weight:700;text-decoration:none;white-space:nowrap}
+.lk.pri{background:var(--pre);border-color:var(--pre);color:#fff}
+.ir.ev{box-shadow:inset 3px 0 0 #F0A020}
+.ir.ev .ic{color:#E08A00}
+.ir.dim{opacity:.55}
+.ir.thumbs{padding-top:6px;padding-bottom:8px;border-top:0!important;align-items:flex-start}
+.ir.thumbs .ic{visibility:hidden}
+.athumbs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0}
+.athumbs::-webkit-scrollbar{display:none}
+.athumb{flex:none;width:64px;height:64px;border-radius:10px;border:1px solid var(--line);overflow:hidden;padding:0;background:var(--paper)}
+.athumb img{width:100%;height:100%;object-fit:cover;display:block}
+.qadd{width:100%;display:flex;align-items:center;gap:8px;height:46px;margin-top:10px;border-radius:var(--r-ctl);border:1px dashed #C9CCDB;background:transparent;color:var(--muted);font-size:14.5px;padding:0 14px}
+.qadd svg{width:18px;height:18px}
+.qadd[hidden]{display:none}
+.addboxh{display:flex;align-items:center;justify-content:space-between;margin:-2px 0 10px}
+.addboxh b{font-size:14px}
+.addboxh .btn.sm{height:32px}
+.addbox{border-style:solid}
+.memocard{display:block;margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);padding:10px 12px}
+.memocard > span{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:2px}
+.memocard textarea{width:100%;border:0;outline:none;background:none;resize:vertical;min-height:44px;font-size:14.5px;line-height:1.55;padding:2px 0;font-family:inherit;color:var(--text)}
+.memocard .romemo{font-size:14px;white-space:pre-wrap}
+.tag.evt{display:inline-flex;align-items:center;gap:3px;background:#FFF0D6;color:#9A5B00}
+.tag.evt svg{width:12px;height:12px}
+.mb .mev{position:absolute;right:2px;bottom:1px;z-index:2;font-style:normal;width:14px;height:14px;border-radius:50%;background:#F0A020;color:#fff;display:grid;place-items:center;box-shadow:0 0 0 1.5px #fff}
+.mb .mev svg{width:9px;height:9px}
+.evedit{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:8px;margin-bottom:8px}
+.evedit.isev{box-shadow:inset 3px 0 0 #F0A020}
+.evedit > .inp{margin-bottom:6px;height:42px}
+.evedit .timerow{margin-bottom:6px}
+.evedit .tlab{font-weight:700}
+.erow .el .etx{display:block;font-size:13.5px;font-weight:600;color:var(--text)}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .tag.evt{background:#4A3510;color:#FFC966} :root:not([data-theme="light"]) .qadd{border-color:#4A4E75} }
+:root[data-theme="dark"] .tag.evt{background:#4A3510;color:#FFC966}
+:root[data-theme="dark"] .lk.pri{color:#14162E}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .lk.pri{color:#14162E} }
+:root[data-theme="dark"] .qadd{border-color:#4A4E75}
+
 /* 하단 탭 */
 .tab{font-weight:600}
 
@@ -1362,7 +1427,7 @@ function normalize(d){
       friends: Array.isArray(b.friends) ? [...new Set(b.friends.map(f=>str(f||"").trim().slice(0,30)).filter(Boolean))] : (str(b.friend||"").trim() ? [str(b.friend).trim().slice(0,30)] : []),
       isFriend: !!b.isFriend || !!str(b.friend||"").trim() || (Array.isArray(b.friends) && b.friends.some(f=>str(f||"").trim())),
       _bp: {preFrom: validDate(b.preFrom), preTo: validDate(b.preTo), preToTime: normTime(b.preToTime) || ""},
-      times: Array.isArray(b.times) ? b.times.slice(0,30).filter(x=>x&&typeof x==="object").map(x=>({label:str(x.label||"").trim().slice(0,60), time:normTime(x.time)||"", end:normTime(x.end)||""})).filter(x=>x.label||x.time||x.end) : [],
+      times: Array.isArray(b.times) ? b.times.slice(0,30).filter(x=>x&&typeof x==="object").map(x=>({label:str(x.label||"").trim().slice(0,60), time:normTime(x.time)||"", end:normTime(x.end)||"", text:str(x.text||"").trim().slice(0,120), note:str(x.note||"").trim().slice(0,200)})).filter(x=>x.label||x.time||x.end||x.text) : [],
       pos: normPos(b.pos),
       items: Array.isArray(b.items) ? b.items.slice(0,500).filter(i=>i&&typeof i==="object").flatMap(flattenSubs).slice(0,500).map(normItem) : []
     }));
@@ -1411,7 +1476,7 @@ function loadIndex(){
   return lib;
 }
 const LIB = loadIndex();
-const UIP = (()=>{ const wide = !window.matchMedia || window.matchMedia("(min-width:560px)").matches; const df = {addOpen:true, ckBar:wide}; try{ return Object.assign(df, JSON.parse(lsGet("boothcheck.ui") || "{}")); }catch(e){ return df; } })();
+const UIP = (()=>{ const wide = !window.matchMedia || window.matchMedia("(min-width:560px)").matches; const df = {addOpen:false, ckBar:wide}; try{ return Object.assign(df, JSON.parse(lsGet("boothcheck.ui") || "{}")); }catch(e){ return df; } })();
 const infoEdit = new Set();
 function saveUIP(){ lsSet("boothcheck.ui", JSON.stringify(UIP)); }
 let S = loadEvent(LIB.current);
@@ -1580,6 +1645,10 @@ function drawWriteList(){
   if(mine.length) el.insertAdjacentHTML("afterbegin", `<div class="vfhint">${VW.edit ? `고치는 중이에요. 다 고치면 ‘수정’, 그만두려면 <button type="button" class="vfcancel" data-vfedit="${VW.edit}">취소</button>` : "물품을 누르면 고칠 수 있어요"}</div>`);
 }
 function stepViewer(d){ const n = VW.list.length; if(n < 2) return; VW.k = (VW.k + d + n) % n; showViewer(); }
+const NON_EVENT = ["현장 판매","부스 철수","현장 판매 시작","현장 판매 마감"];
+function boothEvents(b){ return (b.times || []).filter(x=>(x.label || x.text) && !NON_EVENT.includes(x.label)); }
+const ICON_GIFT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="13" rx="1.5"/><path d="M3 12h18M12 8v13M12 8S10.5 3 7.5 4.5 9 8 12 8zM12 8s1.5-5 4.5-3.5S15 8 12 8z"/></svg>';
+function evChip(b){ const n = boothEvents(b).length; return n ? `<span class="tag evt">${ICON_GIFT}이벤트 ${n}</span>` : ""; }
 function frChip(b){ if(!b.isFriend) return ""; return (b.friends.length ? b.friends : ["지인"]).map(f=>`<span class="tag fr">♥ ${esc(f)}</span>`).join(""); }
 function seatLabel(b){ if(b.half) return "반 부스"; const sp = spanOf(b); return sp > 1 ? sp + "부스" : "한 부스"; }
 function seatsHTML(b){
@@ -2055,7 +2124,7 @@ function boothCard(b){
     <span class="bmain">
       <span class="bname ${b.name?"":"none"}">${b.name ? esc(b.name) : "이름 없는 부스"}</span>
       ${b.artists.some(a=>a.nick) ? `<span class="bartists">${b.artists.filter(a=>a.nick).map(a=>esc(a.nick)).join(", ")}</span>` : ""}
-      ${(()=>{ const pc = boothPeriods(b).every(x=>x.ps.cls === "ok" || x.ps.cls === "late") ? "" : periodChip(b); const m = frChip(b) + dlChip(b) + pc; return m ? `<span class="bmeta">${m}</span>` : ""; })()}
+      ${(()=>{ const pc = boothPeriods(b).every(x=>x.ps.cls === "ok" || x.ps.cls === "late") ? "" : periodChip(b); const m = frChip(b) + evChip(b) + dlChip(b) + pc; return m ? `<span class="bmeta">${m}</span>` : ""; })()}
       ${(()=>{ const parts = [];
         if(st.pre) parts.push(`<span class="ty pre">선입금 ${st.pre}</span>`);
         if(st.on) parts.push(`<span class="ty on">현장 ${st.on}</span>`);
@@ -2781,7 +2850,7 @@ function renderMapItems(){
     const sel = mapEdit && mapSel && mapSel.t==="b" && mapSel.id===b.id;
     const dim = !mapEdit && ((tagFilter && !matchTag(b)) || (route && !rno.has(b.id)));
     const fcls = find ? ((fHere && fHere.t === "b" && fHere.id === b.id ? " here" : "") + (fTgt && fTgt.t === "b" && fTgt.id === b.id ? " tgt" : "")) : "";
-    return `<div class="mb ${boothState(b)} ${sel?"sel":""} ${spanOf(b)>1 && !b.pos.rot ? "" : (code.length>=5?"xlong":(code.length>=4?"long":""))} ${b.half?"":"full"} ${spanOf(b)>1?"multi":""} ${!b.half && b.pos.rot?"vert":""} ${dim?"dim":""} ${b.isFriend?"fr":""}${fcls}" data-bid="${b.id}" style="left:${x*CELL+2}px;top:${y*CELL+2}px;width:${f.w*CELL-4}px;height:${f.h*CELL-4}px;--sc:${secColor(b.section)}"><b>${esc(code)}</b>${b.name?`<i>${esc(b.name)}</i>`:""}${b.isFriend?'<em class="mfr">♥</em>':""}${st.must?'<em class="mst">★</em>':""}${(()=>{ const ps = pickupState(b); return ps && ps.pend && (ps.cls==="soon"||ps.cls==="late") ? '<em class="mdl">⏰</em>' : ""; })()}${route && rno.has(b.id) ? `<em class="rbadge" style="--rc:${ROUTE_C[rno.get(b.id).g]}">${rno.get(b.id).n}</em>` : ""}${fcls.includes("here") ? '<em class="hpin">나</em>' : ""}</div>`;
+    return `<div class="mb ${boothState(b)} ${sel?"sel":""} ${spanOf(b)>1 && !b.pos.rot ? "" : (code.length>=5?"xlong":(code.length>=4?"long":""))} ${b.half?"":"full"} ${spanOf(b)>1?"multi":""} ${!b.half && b.pos.rot?"vert":""} ${dim?"dim":""} ${b.isFriend?"fr":""}${fcls}" data-bid="${b.id}" style="left:${x*CELL+2}px;top:${y*CELL+2}px;width:${f.w*CELL-4}px;height:${f.h*CELL-4}px;--sc:${secColor(b.section)}"><b>${esc(code)}</b>${b.name?`<i>${esc(b.name)}</i>`:""}${b.isFriend?'<em class="mfr">♥</em>':""}${st.must?'<em class="mst">★</em>':""}${(()=>{ const ps = pickupState(b); return ps && ps.pend && (ps.cls==="soon"||ps.cls==="late") ? '<em class="mdl">⏰</em>' : ""; })()}${!mapEdit && boothEvents(b).length ? `<em class="mev" title="이벤트 ${boothEvents(b).length}개">${ICON_GIFT}</em>` : ""}${route && rno.has(b.id) ? `<em class="rbadge" style="--rc:${ROUTE_C[rno.get(b.id).g]}">${rno.get(b.id).n}</em>` : ""}${fcls.includes("here") ? '<em class="hpin">나</em>' : ""}</div>`;
   }).join("");
   cv.innerHTML = marks + (route ? routeSvg(h, fr) : "") + (find ? findSvg(h, fr, fHere, fTgt) : "") + booths;
   if(find){
@@ -3203,7 +3272,7 @@ function makeText(o){
     { const r = recvText(b); if(r) L.push("  수령 방법: " + r); }
     if(b.openFrom || b.openTo) L.push("  부스 운영: " + rangeText(b.openFrom, b.openTo));
     if(b.pickupFrom) L.push("  선입금 수령: " + rangeText(b.pickupFrom, b.pickup)); else if(b.pickup) L.push("  선입금 수령 마감: " + b.pickup);
-    if(b.times.length) L.push("  시간: " + b.times.slice().sort((x,y)=>(x.time||x.end||"99").localeCompare(y.time||y.end||"99")).map(x=>`${rangeText(x.time, x.end)||"--:--"} ${x.label}`).join(", "));
+    if(b.times.length) L.push("  시간·이벤트: " + b.times.slice().sort((x,y)=>(x.time||x.end||"99").localeCompare(y.time||y.end||"99")).map(x=>`${rangeText(x.time, x.end) ? rangeText(x.time, x.end) + " " : ""}${x.label}${x.text ? " " + x.text : ""}${x.note ? " (" + x.note + ")" : ""}`).join(", "));
     if(o.memo && b.memo.trim()) L.push("  메모: " + b.memo.trim().replace(/\n/g," / "));
   }
   return L.join("\n").trim();
@@ -3256,6 +3325,45 @@ function artOptions(b, sel){
   return `<option value="">공통</option>` + b.artists.map((a,k)=>`<option value="${a.id}" ${a.id===sel?"selected":""}>${esc(a.nick || (a.site ? siteLabel(a.site) : "작가 " + (k+1)))}</option>`).join("");
 }
 function boothCountText(b){ const st = boothStats(b); return st.total ? `${st.fin}/${st.total} 완료` : (b.items.length ? `${b.items.length}개` : ""); }
+const IC = {
+  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>',
+  img:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>'
+};
+function spanChip(from, to){ const z = spanState(from, to); if(!z) return "";
+  if(z.phase === "before") return `<span class="dl">${fmtLeft(z.left)} 후</span>`;
+  if(z.phase === "after") return `<span class="dl ok">${from && to ? "끝남" : "지남"}</span>`;
+  if(!from) return `<span class="dl ${z.left<=30?"soon":""}">${fmtLeft(z.left)} 남음</span>`;
+  return `<span class="dl soon">진행 중${z.left!=null && z.left <= 60 ? " · " + fmtLeft(z.left) + " 남음" : ""}</span>`; }
+/* 부스 화면 정보 목록: 작가·기간·운영·수령·이벤트를 같은 모양의 줄로 */
+function boothInfoList(b){
+  const rows = [], multi = b.artists.length > 1;
+  const row = (icon, k, v, sub, right, cls)=>rows.push(`<div class="ir${cls ? " " + cls : ""}"><span class="ic">${icon}</span><span class="k">${k}</span><span class="v">${v}${sub ? `<small>${sub}</small>` : ""}</span>${right ? `<span class="rt">${right}</span>` : ""}</div>`);
+  for(const a of b.artists){
+    const nk = esc(a.nick || (a.site ? siteLabel(a.site) : "작가")), handle = a.site ? esc(/^@/.test(twShow(a.site)) ? twShow(a.site) : siteLabel(a.site)) : "";
+    const v = a.site ? `<a class="alink" href="${esc(a.site)}" target="_blank" rel="noopener noreferrer">${nk}</a>` : nk;
+    const imgs = a.imgs || [];
+    row(CI.user, "작가", v, handle, `${a.info ? `<a class="lk" href="${esc(a.info)}" target="_blank" rel="noopener noreferrer">인포 ↗</a>` : ""}${imgs.length ? `<button type="button" class="lk pri" data-act="infoWrite" data-bid="${b.id}" data-aid="${a.id}">보며 적기</button>` : ""}`, a.hidden ? "dim" : "");
+    if(imgs.length) rows.push(`<div class="ir thumbs"><span class="ic">${IC.img}</span><div class="athumbs">${imgThumbs(imgs, "athumb", b.id, a.id)}</div></div>`);
+  }
+  for(const x of boothPeriods(b)) row(IC.cal, kindWord(x.p), esc(periodText(x.p)), multi && x.label ? esc(x.label) : "", `<span class="dl ${x.ps.cls}">${esc(stripKind(x.ps.text))}</span>${x.p.link ? `<a class="lk" href="${esc(x.p.link)}" target="_blank" rel="noopener noreferrer">폼 ↗</a>` : ""}`);
+  if(b.openFrom || b.openTo) row(IC.clock, "운영", rangeText(b.openFrom, b.openTo), "", spanChip(b.openFrom, b.openTo));
+  if(b.pickup || b.pickupFrom){
+    const ps = pickupState(b);
+    let c = "";
+    if(ps){ if(ps.cls==="ok") c = `<span class="dl ok">수령 완료</span>`; else if(ps.wait != null) c = `<span class="dl">${fmtLeft(ps.wait)} 후</span>`; else if(ps.cls==="late") c = `<span class="dl late">지남</span>`;
+      else if(ps.left == null) c = isEventToday() ? `<span class="dl soon">수령 가능</span>` : ""; else c = ps.cls==="soon" ? `<span class="dl soon">${fmtLeft(ps.left)} 전</span>` : `<span class="dl">${fmtLeft(ps.left)} 남음</span>`; }
+    row(IC.box, "수령", b.pickupFrom ? rangeText(b.pickupFrom, b.pickup) : `${b.pickup} 마감`, "", c);
+  }
+  const ts = (b.times || []).slice().sort((x,y)=>(x.time||x.end||"99").localeCompare(y.time||y.end||"99"));
+  for(const x of ts){
+    const ev = !NON_EVENT.includes(x.label), rg = x.time && !x.end ? x.time : rangeText(x.time, x.end), chip = rg ? (x.end ? spanChip(x.time, x.end) : spanChip("", x.time)) : "";
+    if(ev) row(ICON_GIFT, "이벤트", esc(x.text || x.label || "이벤트"), [x.text ? x.label : "", rg, x.note].filter(Boolean).map(esc).join(" · "), chip, "ev");
+    else row(IC.clock, esc(x.label || "시간"), rg || "--:--", "", chip);
+  }
+  return rows.length ? `<div class="binfo2">${rows.join("")}</div>` : "";
+}
 function renderBoothSheet(){
   const b = findBooth(sh.id); if(!b){ closeSheet(); return; }
   const curArt = lastArt.bid === b.id && b.artists.some(a=>a.id===lastArt.aid) ? lastArt.aid : "";
@@ -3265,40 +3373,19 @@ function renderBoothSheet(){
       <div class="sh-head">
         ${stamp(b)}
         <div class="sh-title"><h3>${b.name ? esc(b.name) : "이름 없는 부스"}</h3>
-          <div class="bmeta">${frChip(b)}<span class="tag seat">${seatLabel(b)}</span><span class="tag seat">${esc(b.section)} 구역</span>${b.tags.map(tagChip).join("")}</div></div>
-        <div class="shbtns"><button class="btn ghost shpin" data-act="${hl?"showOnMap":"placeOnMap"}" aria-label="${hl ? `배치도에서 위치 보기 (${esc(hl.name)})` : "배치도에 놓기"}" title="${hl ? `배치도에서 위치 보기 (${esc(hl.name)})` : "배치도에 놓기"}">${CI.pin.replace("<svg","<svg width=\"17\" height=\"17\"")}<span>${hl ? "위치" : "놓기"}</span></button><button class="btn ghost" data-act="editBooth" style="height:40px;padding:0 12px;font-size:14px">편집</button></div>
+          ${frChip(b) || b.tags.length ? `<div class="bmeta">${frChip(b)}${b.tags.map(tagChip).join("")}</div>` : ""}</div>
+        <div class="shbtns"><button class="ibtn2" data-act="${hl?"showOnMap":"placeOnMap"}" aria-label="${hl ? `배치도에서 위치 보기 (${esc(hl.name)})` : "배치도에 놓기"}" title="${hl ? `배치도에서 위치 보기 (${esc(hl.name)})` : "배치도에 놓기"}">${CI.pin}</button><button class="ibtn2" data-act="editBooth" aria-label="부스 편집" title="부스 편집">${CI.edit}</button></div>
       </div>
     </div>
     <div class="sh-body">
-      ${b.artists.length ? `<div class="artists">${b.artists.map(a=>{
-          const nk = esc(a.nick || (a.site ? siteLabel(a.site) : "작가"));
-          const nick = a.site ? `<a class="anick" href="${esc(a.site)}" target="_blank" rel="noopener noreferrer">${ICON_LINK}<span>${nk}</span><small>${esc(/^@/.test(twShow(a.site)) ? twShow(a.site) : siteLabel(a.site))}</small></a>` : `<span class="anick"><span>${nk}</span></span>`;
-          const imgs = a.imgs || [];
-          return `<div class="arow">${nick}${a.info ? `<a class="ainfo" href="${esc(a.info)}" target="_blank" rel="noopener noreferrer">인포 ↗</a>` : ""}${imgs.length ? `<button type="button" class="ainfo awrite" data-act="infoWrite" data-bid="${b.id}" data-aid="${a.id}">✎ 보며 적기</button>` : ""}</div>${imgs.length ? `<div class="aimgs ${imgs.length===1?"one":""}">${imgThumbs(imgs, "aimg", b.id, a.id)}</div>` : ""}`; }).join("")}</div>` : ""}
-      <div class="binfo">
-        ${(()=>{ const ps = pickupState(b), others = b.times.filter(x=>x.time||x.end||x.label).slice().sort((x,y)=>(x.time||x.end||"99").localeCompare(y.time||y.end||"99"));
-          const pers = boothPeriods(b), hasOpen = b.openFrom || b.openTo, hasPick = b.pickup || b.pickupFrom;
-          if(!hasPick && !hasOpen && !others.length && !pers.length) return "";
-          const chip = (from, to)=>{ const z = spanState(from, to); if(!z) return "";
-            if(z.phase === "before") return `<span class="dl">${fmtLeft(z.left)} 후</span>`;
-            if(z.phase === "after") return `<span class="dl ok">${from && to ? "끝남" : "지남"}</span>`;
-            if(!from) return `<span class="dl ${z.left<=30?"soon":""}">${fmtLeft(z.left)} 남음</span>`;
-            return `<span class="dl soon">진행 중${z.left!=null && z.left <= 60 ? " · " + fmtLeft(z.left) + " 남음" : ""}</span>`; };
-          const pickChip = ()=>{ if(!ps) return ""; if(ps.cls==="ok") return `<span class="dl ok">수령 완료</span>`;
-            if(ps.wait != null) return `<span class="dl">${fmtLeft(ps.wait)} 후</span>`;
-            if(ps.cls==="late") return `<span class="dl late">지남</span>`;
-            if(ps.left == null) return isEventToday() ? `<span class="dl soon">수령 가능</span>` : "";
-            return ps.cls==="soon" ? `<span class="dl soon">${fmtLeft(ps.left)} 전</span>` : `<span class="dl">${b.pickupFrom ? "수령 가능 · " : ""}${fmtLeft(ps.left)} 남음</span>`; };
-          return `<div class="timebox">${pers.map(x=>`<div class="trow pick${x.p.kind === "survey" ? " survey" : ""}"><span class="tl">${kindWord(x.p)}${x.label ? " · " + esc(x.label) : ""}</span><b style="font-size:14px">${esc(periodText(x.p))}</b><span class="dl ${x.ps.cls}">${esc(stripKind(x.ps.text))}</span>${x.p.link ? `<a class="plink" href="${esc(x.p.link)}" target="_blank" rel="noopener noreferrer">폼 ↗</a>` : ""}</div>`).join("")}
-            ${hasOpen ? `<div class="trow open"><span class="tl">부스 운영</span><b>${rangeText(b.openFrom, b.openTo)}</b>${chip(b.openFrom, b.openTo)}</div>` : ""}
-            ${hasPick ? `<div class="trow pick"><span class="tl">${b.pickupFrom ? "선입금 수령" : "선입금 수령 마감"}</span><b>${b.pickupFrom ? rangeText(b.pickupFrom, b.pickup) : b.pickup}</b>${pickChip()}</div>` : ""}
-            ${others.map(x=>`<div class="trow"><span class="tl">${esc(x.label || "시간")}</span><b>${rangeText(x.time, x.end) || "--:--"}</b>${x.end ? chip(x.time, x.end) : chip("", x.time)}</div>`).join("")}</div>`; })()}
-      </div>
-      <div class="sums" id="bSums"></div>
-      <div class="addhead"><h4>구매 리스트</h4><span id="bCount" class="hc"></span><button class="btn ghost sm" data-act="iselOn" id="iselBtn">선택</button><button class="btn ghost sm" data-act="wfOpen">윗치폼</button><button class="btn ghost sm" data-act="toggleAdd" id="addTog">${UIP.addOpen ? "접기" : "+ 추가"}</button></div>
+      <div class="bstrip" id="bSums"></div>
+      ${boothInfoList(b)}
+      <div class="addhead"><h4>구매 리스트</h4><span id="bCount" class="hc"></span><button class="btn ghost sm" data-act="wfOpen">윗치폼</button><button class="ibtn2 sm" data-act="bMore" id="iselBtn" aria-label="더 보기">${CI.more}</button></div>
       <div class="itembox" id="bItems"></div>
       <div id="iselBar"></div>
+      <button type="button" class="qadd" data-act="toggleAdd" id="qAdd" ${UIP.addOpen ? "hidden" : ""}>${CI.plus}<span>물품 추가 (이름, 가격)</span></button>
       <div class="addbox" id="addBox" ${UIP.addOpen ? "" : "hidden"}>
+        <div class="addboxh"><b>물품 추가</b><button type="button" class="btn ghost sm" data-act="toggleAdd">닫기</button></div>
         ${b.artists.length > 1 ? `<select class="inp" id="nArt" aria-label="작가" style="margin-bottom:8px">${artOptions(b, curArt)}</select>` : ""}
         <div class="addtop">
           <select class="inp" id="nCat" aria-label="상품 종류">${catOptions(lastCat)}</select>
@@ -3318,11 +3405,9 @@ function renderBoothSheet(){
           <button class="btn pre" id="nAdd" style="padding:0 16px">추가</button>
         </div>
       </div>
-      ${lockedBooth(b) ? `${b.memo.trim() ? `<div class="field" style="margin:16px 0 0"><span>부스 메모 (원본)</span><div class="romemo">${esc(b.memo)}</div></div>` : ""}
-      <label class="field" style="margin:16px 0 0"><span>내 메모</span>
-        <textarea class="inp" id="bPMemo" placeholder="나만 보는 메모" style="min-height:64px">${esc(b.pmemo||"")}</textarea></label>`
-      : `<label class="field" style="margin:16px 0 0"><span>부스 메모</span>
-        <textarea class="inp" id="bMemo" placeholder="위치 힌트, 줄 서는 방향, 수령 방법 등" style="min-height:64px">${esc(b.memo)}</textarea></label>`}
+      ${lockedBooth(b) ? `${b.memo.trim() ? `<div class="memocard"><span>부스 메모 (원본)</span><div class="romemo">${esc(b.memo)}</div></div>` : ""}
+      <label class="memocard"><span>내 메모</span><textarea id="bPMemo" placeholder="나만 보는 메모" rows="2">${esc(b.pmemo||"")}</textarea></label>`
+      : `<label class="memocard"><span>부스 메모</span><textarea id="bMemo" placeholder="위치 힌트, 줄 서는 방향 등" rows="2">${esc(b.memo)}</textarea></label>`}
     </div>`;
   renderBoothItems();
   const memo = document.getElementById("bMemo");
@@ -3366,7 +3451,7 @@ let ISEL = null; // {bid, ids:Set}
 function iselItems(b){ return ISEL ? b.items.filter(i=>ISEL.ids.has(i.id)) : []; }
 function iselDraw(b){
   const box = document.getElementById("bItems"), bar = document.getElementById("iselBar"), btn = document.getElementById("iselBtn");
-  if(btn){ btn.textContent = ISEL ? "완료" : "선택"; btn.classList.toggle("pre", !!ISEL); btn.classList.toggle("ghost", !ISEL); }
+  if(btn){ btn.innerHTML = ISEL ? "완료" : CI.more; btn.dataset.act = ISEL ? "iselOn" : "bMore"; btn.classList.toggle("on", !!ISEL); btn.setAttribute("aria-label", ISEL ? "고르기 끝내기" : "더 보기"); }
   if(!box || !bar) return;
   box.classList.toggle("selecting", !!ISEL);
   if(!ISEL){ bar.innerHTML = ""; return; }
@@ -3438,11 +3523,20 @@ function renderBoothItems(){
   const anyImg = b.artists.some(a=>(a.imgs||[]).length);
   if(ISEL && ISEL.bid !== b.id) ISEL = null;
   box.innerHTML = (b.items.length || b.artists.length) ? html : html + `<div class="empty">살 물품을 아래에서 추가하거나<br>${anyImg ? "인포 이미지를 보면서 적어 보세요." : "‘윗치폼’으로 한꺼번에 넣어 보세요."}</div>`;
-  document.getElementById("bSums").innerHTML = `<div class="p">선입금 ${st.pre}개<b>${won(st.preAmt)}</b></div><div class="o">현장 ${st.on}개<b>${won(st.onAmt)}</b></div>${st.maybe ? `<div class="mb2">고민중 ${st.maybe}개 (합계에서 빠져 있어요)<b>${won(st.maybeAmt)}</b></div>` : ""}`;
-  const bpb = payBreakdown(linesOf(b));
-  const bpt = [["cash","현금"],["transfer","이체"],["card","카드"]].filter(([k])=>bpb[k] > 0);
+  { const L = linesOf(b).filter(i=>!i.maybe), cnt = t=>{ const ls = L.filter(i=>i.type===t); return ls.length ? `${ls.filter(isFinal).length}/${ls.length}` : ""; };
+    const bpb = payBreakdown(linesOf(b)), unpaid = bpb.cash + bpb.transfer + bpb.card + bpb[""];
+    const cols = [`<div class="sm"><small>남은 결제</small><b>${won(unpaid)}</b></div>`];
+    if(cnt("pre")) cols.push(`<div class="sp"><small>선입금</small><b>${cnt("pre")}</b></div>`);
+    if(cnt("on")) cols.push(`<div class="so"><small>현장</small><b>${cnt("on")}</b></div>`);
+    if(cnt("free")) cols.push(`<div class="sf"><small>무료</small><b>${cnt("free")}</b></div>`);
+    const bpt = [["cash","현금"],["transfer","이체"],["card","카드"]].filter(([k])=>bpb[k] > 0);
+    const notes = [];
+    if(st.maybe) notes.push(`고민중 ${st.maybe}개 ${won(st.maybeAmt)}은 합계에서 빠져 있어요`);
+    if(bpt.length) notes.push(bpt.map(([k,l])=>`${l} ${won(bpb[k])}`).join(" · ") + (bpb[""] ? ` · 미정 ${won(bpb[""])}` : ""));
+    const el = document.getElementById("bSums");
+    el.innerHTML = L.length || st.maybe ? `<div class="bstripg" style="grid-template-columns:1.35fr ${"1fr ".repeat(cols.length - 1)}">${cols.join("")}</div>${notes.length ? `<p class="bstripn">${notes.join("<br>")}</p>` : ""}` : "";
+  }
   iselDraw(b);
-  if(bpt.length) document.getElementById("bSums").insertAdjacentHTML("beforeend", `<div class="paysum">남은 결제 ${bpt.map(([k,l])=>`${l} <b>${won(bpb[k])}</b>`).join(" · ")}${bpb[""] ? ` · 미정 <b>${won(bpb[""])}</b>` : ""}</div>`);
   document.getElementById("bCount").textContent = boothCountText(b);
 }
 
@@ -3596,16 +3690,23 @@ function renderBoothForm(){
   const fHours = document.getElementById("fHours");
   fHours.addEventListener("input", e=>{ const t = e.target; if(t.dataset.hf) draft[t.dataset.hf] = t.value; });
   fHours.addEventListener("focusout", e=>{ const t = e.target; if(!t.dataset.hf) return; const v = normTime(t.value); if(v){ t.value = v; draft[t.dataset.hf] = v; } });
-  const TIME_PRESETS = ["현장 판매","사인회","추첨","구매 특전","부스 철수"];
+  const TIME_PRESETS = ["구매 특전","추첨","사인회","현장 판매","부스 철수"];
   const fTimes = document.getElementById("fTimes"), fTimeSug = document.getElementById("fTimeSug");
   const drawTimes = ()=>{
-    fTimes.innerHTML = draft.times.map((x,k)=>`<div class="timerow trng tcus"><input class="inp tlab" data-tk="${k}" data-tf="label" value="${esc(x.label)}" placeholder="이름 (사인회 등)" aria-label="무엇을 하는지"><input class="inp stime" data-tk="${k}" data-tf="time" value="${esc(x.time)}" placeholder="13:00" inputmode="numeric" maxlength="5" aria-label="시작 시간"><i class="tsep">~</i><input class="inp stime" data-tk="${k}" data-tf="end" value="${esc(x.end||"")}" placeholder="끝" inputmode="numeric" maxlength="5" aria-label="끝 시간 (없으면 비워 두기)"><button type="button" class="iconbtn danger" data-tkdel="${k}" aria-label="시간 지우기">${ICON_TRASH}</button></div>`).join("");
-    fTimeSug.innerHTML = `<span class="lbl">시간 더하기</span>` + TIME_PRESETS.filter(p=>!draft.times.some(x=>x.label===p)).map(p=>`<button type="button" class="tg" style="--tc:var(--pre);--tb:var(--pre-soft)" data-tadd="${esc(p)}">+ ${esc(p)}</button>`).join("") + `<button type="button" class="tg" style="--tc:var(--muted);--tb:var(--paper)" data-tadd="">+ 직접 입력</button>`;
+    fTimes.innerHTML = draft.times.map((x,k)=>{ const ev = !NON_EVENT.includes(x.label);
+      return `<div class="evedit${ev ? " isev" : ""}">
+      <div class="timerow"><input class="inp tlab" data-tk="${k}" data-tf="label" value="${esc(x.label)}" placeholder="종류 (구매 특전·추첨 등)" aria-label="종류"><button type="button" class="iconbtn danger" data-tkdel="${k}" aria-label="지우기">${ICON_TRASH}</button></div>
+      ${ev ? `<input class="inp" data-tk="${k}" data-tf="text" value="${esc(x.text||"")}" placeholder="내용 (예: 2만원 이상 구매 시 엽서)" maxlength="120">` : ""}
+      <div class="timerow trng"><span class="tname">시간${ev ? " (선택)" : ""}</span><input class="inp stime" data-tk="${k}" data-tf="time" value="${esc(x.time)}" placeholder="시작" inputmode="numeric" maxlength="5" aria-label="시작 시간"><i class="tsep">~</i><input class="inp stime" data-tk="${k}" data-tf="end" value="${esc(x.end||"")}" placeholder="끝" inputmode="numeric" maxlength="5" aria-label="끝 시간"></div>
+      ${ev ? `<input class="inp" data-tk="${k}" data-tf="note" value="${esc(x.note||"")}" placeholder="조건·메모 (선택, 예: 1인 1회)" maxlength="200">` : ""}
+    </div>`; }).join("");
+    fTimeSug.innerHTML = `<span class="lbl">더하기</span>` + TIME_PRESETS.filter(p=>!NON_EVENT.includes(p) || !draft.times.some(x=>x.label===p)).map(p=>`<button type="button" class="tg" style="--tc:var(--pre);--tb:var(--pre-soft)" data-tadd="${esc(p)}">+ ${esc(p)}</button>`).join("") + `<button type="button" class="tg" style="--tc:var(--muted);--tb:var(--paper)" data-tadd="">+ 직접 입력</button>`;
   };
   fTimes.addEventListener("input", e=>{ const t = e.target; if(t.dataset.tk==null) return; draft.times[+t.dataset.tk][t.dataset.tf] = t.value; });
+  fTimes.addEventListener("change", e=>{ const t = e.target; if(t.dataset.tf !== "label") return; const blk = t.closest(".evedit"); if(blk && blk.classList.contains("isev") === NON_EVENT.includes(t.value.trim())) drawTimes(); });
   fTimes.addEventListener("focusout", e=>{ const t = e.target; if(t.dataset.tf==="time" || t.dataset.tf==="end"){ const v = normTime(t.value); if(v){ t.value = v; draft.times[+t.dataset.tk][t.dataset.tf] = v; } } });
   fTimes.addEventListener("click", e=>{ const d = e.target.closest("[data-tkdel]"); if(d){ draft.times.splice(+d.dataset.tkdel,1); drawTimes(); } });
-  fTimeSug.addEventListener("click", e=>{ const a = e.target.closest("[data-tadd]"); if(!a) return; draft.times.push({label:a.dataset.tadd, time:"", end:""}); drawTimes(); const ins = fTimes.querySelectorAll(a.dataset.tadd ? '[data-tf="time"]' : '[data-tf="label"]'); if(ins.length) ins[ins.length-1].focus(); });
+  fTimeSug.addEventListener("click", e=>{ const a = e.target.closest("[data-tadd]"); if(!a) return; draft.times.push({label:a.dataset.tadd, time:"", end:"", text:"", note:""}); drawTimes(); const ins = fTimes.querySelectorAll(!a.dataset.tadd ? '[data-tf="label"]' : NON_EVENT.includes(a.dataset.tadd) ? '[data-tf="time"]' : '[data-tf="text"]'); if(ins.length) ins[ins.length-1].focus(); });
   drawTimes();
   document.getElementById("fMemo").addEventListener("input", e=>{ draft.memo = e.target.value; });
   if(!isNew && lockedBooth(b)) lockBoothForm();
@@ -4146,7 +4247,7 @@ function renderEvTab(){
     ${infoCardSch()}
     ${infoCardExtra()}
     ${bt.length ? `<section class="card"><h2>부스 시간·이벤트</h2>
-      ${bt.map(({b,x,open})=>`<button class="erow${open ? " eopen" : ""}" data-act="open" data-id="${b.id}">${et(x.time, x.end)}${code(b)}<span class="el">${esc(x.label||"시간")}<small>${esc(b.name||"")}</small></span>${left(x.time, x.end)}</button>`).join("")}</section>` : ""}
+      ${bt.map(({b,x,open})=>`<button class="erow${open ? " eopen" : ""}" data-act="open" data-id="${b.id}">${et(x.time, x.end)}${code(b)}<span class="el">${esc(x.label||"시간")}${x.text ? `<span class="etx">${esc(x.text)}</span>` : ""}<small>${esc([b.name, x.note].filter(Boolean).join(" · "))}</small></span>${left(x.time, x.end)}</button>`).join("")}</section>` : ""}
     ${pickups.length ? `<section class="card"><h2>${pickups.some(b=>b.pickupFrom) ? "선입금 수령" : "선입금 수령 마감"}</h2>${pickups.map(b=>`<button class="erow" data-act="open" data-id="${b.id}">${et(b.pickupFrom, b.pickup)}${code(b)}<span class="el">${esc(b.name||"이름 없는 부스")}</span>${left(b.pickupFrom, b.pickup)}</button>`).join("")}</section>` : ""}
     ${periods.length ? `<section class="card"><h2>${periods.some(x=>x.p.kind==="survey") ? (periods.some(x=>x.p.kind!=="survey") ? "선입금·수요조사 기간" : "수요조사 기간") : "선입금 기간"}</h2>${periods.map(x=>`<div class="erowl${x.ended ? " ended" : ""}"><button class="erow" data-act="open" data-id="${x.b.id}"><b class="et" style="width:auto;font-size:13px">${esc(periodText(x.p))}</b>${code(x.b)}<span class="el">${esc(x.label)}<small>${x.p.kind === "survey" ? "수요조사 · " : ""}${esc(x.b.name||"")}</small></span><span class="dl ${x.ps.cls}">${esc(stripKind(x.ps.text))}</span></button>${x.p.link ? `<a class="plink" href="${esc(x.p.link)}" target="_blank" rel="noopener noreferrer" aria-label="${kindWord(x.p)} 폼 열기">폼 ↗</a>` : ""}</div>`).join("")}</section>` : ""}
     ${free.length ? `<section class="card"><h2>전프레·무료 배포</h2>
@@ -5498,10 +5599,19 @@ document.addEventListener("click", async e=>{
       p.gifts.push({id:uid(), name:v.slice(0,60), done:false}); save(); renderPeople();
       const n = document.querySelector(`[data-gnew="${pid}"]`); if(n) n.focus(); break;
     }
+    case "bMore": {
+      const b = findBooth(sh && sh.id); if(!b) return; const r = t.getBoundingClientRect();
+      openCtx(r.right, r.bottom, [
+        {icon:"check", label:"여러 개 골라서 바꾸기·지우기", fn:()=>{ ISEL = {bid:b.id, ids:new Set()}; renderBoothItems(); toast("고칠 물품을 누르세요"); }},
+        {icon:"plus", label: UIP.addOpen ? "물품 추가 칸 닫기" : "물품 추가 칸 열기", fn:()=>{ const q = document.getElementById("qAdd"); if(q) q.click(); }},
+        {icon:"edit", label:"부스 편집", fn:()=>openSheet({kind:"boothForm", id:b.id})}
+      ]);
+      break;
+    }
     case "toggleAdd": {
       UIP.addOpen = !UIP.addOpen; saveUIP();
       const box = document.getElementById("addBox"); if(box) box.hidden = !UIP.addOpen;
-      t.textContent = UIP.addOpen ? "접기" : "+ 추가";
+      const qa = document.getElementById("qAdd"); if(qa) qa.hidden = UIP.addOpen;
       if(UIP.addOpen){ const n = document.getElementById("nName"); if(n){ n.focus({preventScroll:true}); box.scrollIntoView({block:"nearest", behavior:"smooth"}); } }
       break;
     }
@@ -5636,7 +5746,8 @@ document.addEventListener("click", async e=>{
         const lb = (x.label||"").trim(), tm = (x.time||"").trim() ? normTime(x.time) : "", te = (x.end||"").trim() ? normTime(x.end) : "";
         if(tm === null || te === null){ toast(`‘${lb || "시간"}’의 시간을 13:00처럼 적어 주세요`); return; }
         if(tm && te && tm > te){ toast(`‘${lb || "시간"}’ 시작이 끝보다 늦어요`); return; }
-        if(lb || tm || te) times.push({label:lb, time:tm, end:te});
+        const tx = String(x.text||"").trim().slice(0,120), nt = String(x.note||"").trim().slice(0,200);
+        if(lb || tm || te || tx) times.push({label:lb, time:tm, end:te, text:tx, note:nt});
       }
       const artists = [];
       for(const a of d.artists){
