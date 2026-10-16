@@ -1399,6 +1399,8 @@ function loadEvent(id){
   st = st || defaultState(); lastJs[id] = JSON.stringify(st);
   return (memEvents[id] = st);
 }
+/* 동기화 순서표: 기기 시계가 어긋나도, 마지막으로 받은 것(cu)·내 마지막 수정(mod)보다 항상 커지게 함 */
+function nextStamp(ent){ return Math.max(Date.now(), ((ent && ent.cu) || 0) + 1, ((ent && ent.mod) || 0) + 1); }
 function evMeta(st){ return {name:st.event.name, date:st.event.date, count:st.booths.length, updated:Date.now()}; }
 function saveIndex(){ lsSet(IDX_KEY, JSON.stringify(LIB)); }
 function loadIndex(){
@@ -1426,7 +1428,7 @@ function flush(){
   const js = JSON.stringify(S);
   const ok = lsSet(EV_PREFIX + id, js);
   const ent = LIB.list.find(x=>x.id===id); if(ent) Object.assign(ent, evMeta(S));
-  if(lastJs[id] !== js){ lastJs[id] = js; if(ent) ent.mod = Date.now(); clChanged(id); }
+  if(lastJs[id] !== js){ lastJs[id] = js; if(ent) ent.mod = nextStamp(ent); clChanged(id); }
   saveIndex();
   if(!ok && !saveWarned){ saveWarned = true; toast("이 화면에서는 자동 저장이 안 돼요. 공유 코드로 백업해 두세요."); }
 }
@@ -4636,7 +4638,7 @@ function setSB(id, json){ if(json){ try{ sbMem[id] = JSON.parse(json); }catch(e)
 function setBase(id, b){ pbMem[id] = b || null; if(b) lsSet(PB_PREFIX + id, JSON.stringify(b)); else lsDel(PB_PREFIX + id); }
 function setLink(id, link){
   const e = entOf(id); if(!e) return;
-  e.link = link || null; e.mod = Date.now(); if(!link) setBase(id, null);
+  e.link = link || null; e.mod = nextStamp(e); if(!link) setBase(id, null);
   saveIndex(); clQueueUser(id, 300);
 }
 let srcCache = {b:null, booths:null, items:null};
@@ -4965,7 +4967,7 @@ async function clApplyUserDoc(r){
   const rl = payload.l && /^[A-Z0-9]{8}$/.test(payload.l.code || "") && ["own", "edit", "sub"].includes(payload.l.role) ? {role:payload.l.role, code:payload.l.code} : null;
   const link = dirty && ent.link !== undefined ? ent.link : rl;
   Object.assign(ent, evMeta(st), {link: link && link.code ? link : null, cu:r.upd, acct:CL.user.uid});
-  ent.mod = dirty && js !== rjs ? Date.now() : r.upd;
+  ent.mod = dirty && js !== rjs ? nextStamp(ent) : r.upd;
   setSB(id, rjs);
   const lb = getBase(id), rb = (()=>{ try{ return payload.b && payload.b.p ? {v:Math.max(0, Math.floor(Number(payload.b.v)) || 0), p:sanitizeProj(payload.b.p)} : null; }catch(e){ return null; } })();
   if(!ent.link) setBase(id, null);
@@ -4991,7 +4993,7 @@ async function clPushUser(id){
   if(id === LIB.current && saveT) flush();
   const st = loadEvent(id);
   if(!ent.cu && !ent.link && isBlank(st)) return;
-  if(!ent.mod) ent.mod = Date.now();
+  if(!ent.mod) ent.mod = nextStamp(ent);
   const upd = ent.mod, me = CL.user.uid, sj = JSON.stringify(st);
   CL.inflight++; clRefreshUI();
   try{
@@ -5023,7 +5025,7 @@ function clDeleted(id){
   if(!CL.db) return;
   if(l && l.role === "own" && CL.user) clStopRemote(l.code).catch(()=>{});
   if(l && l.role === "edit" && CL.user) CL.F.deleteDoc(CL.F.doc(CL.db, "pub", l.code, "editors", CL.user.uid)).catch(()=>{});
-  if(CL.user && e && e.cu && (!e.acct || e.acct === CL.user.uid)) CL.F.setDoc(evDocRef(id), {del:true, upd:Date.now()}).catch(e2=>clErr(e2, true));
+  if(CL.user && e && e.cu && (!e.acct || e.acct === CL.user.uid)) CL.F.setDoc(evDocRef(id), {del:true, upd:nextStamp(e)}).catch(e2=>clErr(e2, true));
   clearTimeout(CL.userT[id]); delete CL.userT[id];
 }
 
@@ -6001,6 +6003,10 @@ if("serviceWorker" in navigator && !IN_CLAUDE && (location.protocol === "https:"
     navigator.serviceWorker.register("sw.js").then(()=>navigator.serviceWorker.ready).then(()=>{ PWA.ok = true; pwaRefresh(); }).catch(()=>{ PWA.sw = false; pwaRefresh(); });
   });
 }
+/* 테스트용: 주소에 ?bctest가 있을 때만 내부 함수를 밖으로 꺼내 둠 (tests/ 참고) */
+if(/[?&]bctest\b/.test(location.search)) window.__bcTest = {normalize, defaultState, merge3, m3deep, applyShared, shareProj, sanitizeProj,
+  parseLive, parseWitch, parseCode, makeCode, exportData, normTime, normRange, normLink, normSite, periodState, boothCode, josaRo, parseFriend, splitTags, esc,
+  nextStamp, flush, getS: ()=>S, setS: v=>{ S = v; }};
 /* boot */
 if(BROKEN.size) setTimeout(brokenToast, 800);
 renderTop();

@@ -1,0 +1,16 @@
+{
+  "name": "booth-check",
+  "private": true,
+  "description": "부스 체크 개발용 (앱 자체는 index.html 하나로 돌아가요. 이 파일은 테스트·포맷용이에요)",
+  "scripts": {
+    "test": "playwright test",
+    "serve": "http-server -p 8123 -c-1 .",
+    "format": "prettier --write index.html sw.js",
+    "format:check": "prettier --check index.html sw.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "http-server": "14.1.1",
+    "prettier": "3.6.2"
+  }
+}
