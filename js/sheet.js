@@ -194,7 +194,9 @@ function makeText(o) {
       }
     for (const a of b.artists)
       L.push(
-        `  작가: ${a.nick || "-"}${a.site ? " " + a.site : ""}${a.info ? "  인포: " + a.info : ""}${periodOf(a) ? "  " + kindWord(a) + ": " + periodText(periodOf(a)) + (a.preLink ? " " + a.preLink : "") : ""}${(a.imgs || []).length ? "  인포 이미지: " + a.imgs.join(" ") : ""}`
+        `  작가: ${a.nick || "-"}${a.site ? " " + a.site : ""}${a.info ? "  인포: " + a.info : ""}${periodsOf(a)
+          .map((p) => "  " + kindWord(p) + ": " + periodText(p) + (p.link ? " " + p.link : ""))
+          .join("")}${(a.imgs || []).length ? "  인포 이미지: " + a.imgs.join(" ") : ""}`
       );
     if (o.people && b.isFriend) L.push("  지인: " + (b.friends.length ? b.friends.join(", ") : "♥"));
     {
@@ -782,10 +784,18 @@ function renderBoothItems() {
         html += `<div class="agbox" data-aid="${a.id}"><div class="agrp hid" data-aid="${a.id}" data-bid="${b.id}"><span class="an">${nm}</span><span class="hidn">숨김 · 물품 ${its.length}개</span><button class="btn ghost sm" data-act="artShow" data-aid="${a.id}">보이기</button></div></div>`;
         return;
       }
-      const ap = periodOf(a),
-        aps = ap ? periodState(ap, artistPaid(b, a)) : null;
+      /* 선입금·수요조사 둘 다 있으면 둘 다 표시 (둘 다면 이름을 붙여 구분) */
+      const aps = periodsOf(a)
+        .map((ap) => ({ ap, ps: periodState(ap, artistPaid(b, a)) }))
+        .filter((x) => x.ps.cls !== "late");
+      const apChips = aps
+        .map(
+          ({ ap, ps }) =>
+            `<span class="dl ${ps.cls}" title="${esc(kindWord(ap) + " " + periodText(ap))}">${esc(ap.kind === "survey" || periodsOf(a).length > 1 ? ps.text : stripKind(ps.text))}</span>`
+        )
+        .join("");
       html +=
-        `<div class="agbox" data-aid="${a.id}"><div class="agrp" data-aid="${a.id}" data-bid="${b.id}"><span class="an">${nm}</span>${aps && aps.cls !== "late" ? `<span class="dl ${aps.cls}" title="${esc(kindWord(ap) + " " + periodText(ap))}">${esc(ap.kind === "survey" ? aps.text : stripKind(aps.text))}</span>` : ""}${rcvHead(b, a, ro)}</div>${ro ? "" : rcvEditor(b, a)}` +
+        `<div class="agbox" data-aid="${a.id}"><div class="agrp" data-aid="${a.id}" data-bid="${b.id}"><span class="an">${nm}</span>${apChips}${rcvHead(b, a, ro)}</div>${ro ? "" : rcvEditor(b, a)}` +
         (its.length ? rows(its) : `<div class="aempty">이 작가로 지정한 물품이 없어요</div>`) +
         `</div>`;
     });
@@ -869,7 +879,13 @@ function renderBoothForm() {
       half: b.half || 0,
       span: spanOf(b),
       name: b.name,
-      artists: (b.artists || []).map((a) => ({ ...a, recv: [...(a.recv || [])], imgs: [...(a.imgs || [])] })),
+      artists: (b.artists || []).map((a) => ({
+        ...a,
+        recv: [...(a.recv || [])],
+        imgs: [...(a.imgs || [])],
+        _pre: !!periodOf(a) || !surveyOf(a),
+        _sv: !!surveyOf(a),
+      })),
       pickup: b.pickup || "",
       pickupFrom: b.pickupFrom || "",
       openFrom: b.openFrom || "",
@@ -1067,15 +1083,26 @@ ${isNew ? "" : `<button class="btn danger" data-act="delBooth">삭제</button>`}
       ${(a.recv || []).includes("custom") ? `<input class="inp wide" data-ak="${k}" data-af="memo" value="${esc(a.memo || "")}" placeholder="수령 방법 직접 적기" maxlength="200">` : ""}
       <div class="wide" style="font-size:12px;font-weight:700;color:var(--muted);margin-top:2px">인포 이미지 링크 (붙여 넣고 엔터, 여러 개 가능)</div>
       <div class="imged wide">${(a.imgs || []).map((u, j) => `<span class="imgchip"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-bad><button type="button" data-akimgdel="${k}:${j}" aria-label="이미지 빼기">×</button></span>`).join("")}<input data-ak="${k}" data-af="imgIn" value="${esc(a.imgIn || "")}" placeholder="https://… 이미지 주소" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>
-      <div class="wide kindrow"><span>기간 종류</span><div class="pick kindpick">${[
-        ["", "선입금"],
-        ["survey", "수요조사"],
+      <div class="wide kindrow"><span>진행하는 것 (둘 다 가능)</span><div class="pick kindpick">${[
+        ["sv", "수요조사"],
+        ["pre", "선입금"],
       ]
-        .map(([v, l]) => `<button type="button" data-kk="${k}" data-kind="${v}" aria-pressed="${(a.preKind || "") === v}">${l}</button>`)
+        .map(([v, l]) => `<button type="button" data-kk="${k}" data-kind="${v}" aria-pressed="${!!a["_" + v]}">${l}</button>`)
         .join("")}</div></div>
-      <div class="wide" style="font-size:12px;font-weight:700;color:var(--muted);margin-top:2px">${a.preKind === "survey" ? "수요조사" : "선입금"} 기간 (시작일 · 마감일 · 마감 시각) · 폼 링크</div>
-      <div class="perrow wide"><input class="inp" type="date" data-ak="${k}" data-af="preFrom" value="${esc(a.preFrom || "")}" aria-label="시작일"><input class="inp" type="date" data-ak="${k}" data-af="preTo" value="${esc(a.preTo || "")}" aria-label="마감일"><input class="inp stime" data-ak="${k}" data-af="preToTime" value="${esc(a.preToTime || "")}" placeholder="23:59" inputmode="numeric" maxlength="5" aria-label="마감 시각"></div>
-      <input class="inp wide" data-ak="${k}" data-af="preLink" value="${esc(a.preLink || "")}" placeholder="${a.preKind === "survey" ? "수요조사" : "선입금"} 폼 링크 (위치폼·구글폼 등, 선택)" autocapitalize="off" spellcheck="false">
+      ${[
+        ["sv", "수요조사"],
+        ["pre", "선입금"],
+      ]
+        .filter(([v]) => a["_" + v])
+        .map(
+          ([
+            v,
+            w,
+          ]) => `<div class="wide" style="font-size:12px;font-weight:700;color:var(--muted);margin-top:2px">${w} 기간 (시작일 · 마감일 · 마감 시각) · 폼 링크</div>
+      <div class="perrow wide"><input class="inp" type="date" data-ak="${k}" data-af="${v}From" value="${esc(a[v + "From"] || "")}" aria-label="${w} 시작일"><input class="inp" type="date" data-ak="${k}" data-af="${v}To" value="${esc(a[v + "To"] || "")}" aria-label="${w} 마감일"><input class="inp stime" data-ak="${k}" data-af="${v}ToTime" value="${esc(a[v + "ToTime"] || "")}" placeholder="23:59" inputmode="numeric" maxlength="5" aria-label="${w} 마감 시각"></div>
+      <input class="inp wide" data-ak="${k}" data-af="${v}Link" value="${esc(a[v + "Link"] || "")}" placeholder="${w} 폼 링크 (위치폼·구글폼 등, 선택)" aria-label="${w} 폼 링크" autocapitalize="off" spellcheck="false">`
+        )
+        .join("")}
     </div>`
       )
       .join("");
@@ -1134,7 +1161,9 @@ ${isNew ? "" : `<button class="btn danger" data-act="delBooth">삭제</button>`}
     }
     const kb = e.target.closest("[data-kind]");
     if (kb && !kb.disabled) {
-      draft.artists[+kb.dataset.kk].preKind = kb.dataset.kind;
+      const da = draft.artists[+kb.dataset.kk],
+        f = "_" + kb.dataset.kind;
+      da[f] = !da[f];
       drawArtists();
       return;
     }
@@ -1163,6 +1192,8 @@ ${isNew ? "" : `<button class="btn danger" data-act="delBooth">삭제</button>`}
       preTo: "",
       preToTime: "",
       imgs: [],
+      _pre: true,
+      _sv: false,
     });
     drawArtists();
     const ins = fArt.querySelectorAll('[data-af="nick"]');

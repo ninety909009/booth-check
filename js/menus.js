@@ -435,7 +435,9 @@ function artistMenu(b, aid) {
           fn: () => openViewer(a.imgs, 0, { bid: b.id, aid: a.id }),
         }
       : null,
-    a.preLink ? { icon: "link", label: `${kindWord(a)} 폼 열기`, fn: () => window.open(a.preLink, "_blank", "noopener") } : null,
+    ...periodsOf(a)
+      .filter((p) => p.link)
+      .map((p) => ({ icon: "link", label: `${kindWord(p)} 폼 열기`, fn: () => window.open(p.link, "_blank", "noopener") })),
     (a.imgs || []).length
       ? { icon: "memo", label: "인포 보며 물품 적기", fn: () => openViewer(a.imgs, 0, { bid: b.id, aid: a.id, write: true }) }
       : null,
@@ -1140,6 +1142,8 @@ function renderEvTab() {
   for (const b of booths) {
     for (const x of boothPeriods(b)) periods.push({ b, p: x.p, ps: x.ps, label: x.label || "작가" });
   }
+  /* 수요조사·선입금이 섞여 있으면 줄마다 종류를 붙임 */
+  const mixedKinds = periods.some((x) => x.p.kind === "survey") && periods.some((x) => x.p.kind !== "survey");
   const nowD = new Date();
   for (const x of periods) {
     const e = periodEnd(x.p);
@@ -1169,7 +1173,7 @@ function renderEvTab() {
         : ""
     }
     ${pickups.length ? `<section class="card"><h2>${pickups.some((b) => b.pickupFrom) ? "선입금 수령" : "선입금 수령 마감"}</h2>${pickups.map((b) => `<button class="erow" data-act="open" data-id="${b.id}">${et(b.pickupFrom, b.pickup)}${code(b)}<span class="el">${esc(b.name || "이름 없는 부스")}</span>${left(b.pickupFrom, b.pickup)}</button>`).join("")}</section>` : ""}
-    ${periods.length ? `<section class="card"><h2>${periods.some((x) => x.p.kind === "survey") ? (periods.some((x) => x.p.kind !== "survey") ? "선입금·수요조사 기간" : "수요조사 기간") : "선입금 기간"}</h2>${periods.map((x) => `<div class="erowl${x.ended ? " ended" : ""}"><button class="erow" data-act="open" data-id="${x.b.id}"><b class="et" style="width:auto;font-size:13px">${esc(periodText(x.p))}</b>${code(x.b)}<span class="el">${esc(x.label)}<small>${x.p.kind === "survey" ? "수요조사 · " : ""}${esc(x.b.name || "")}</small></span><span class="dl ${x.ps.cls}">${esc(stripKind(x.ps.text))}</span></button>${x.p.link ? `<a class="plink" href="${esc(x.p.link)}" target="_blank" rel="noopener noreferrer" aria-label="${kindWord(x.p)} 폼 열기">폼 ↗</a>` : ""}</div>`).join("")}</section>` : ""}
+    ${periods.length ? `<section class="card"><h2>${periods.some((x) => x.p.kind === "survey") ? (periods.some((x) => x.p.kind !== "survey") ? "선입금·수요조사 기간" : "수요조사 기간") : "선입금 기간"}</h2>${periods.map((x) => `<div class="erowl${x.ended ? " ended" : ""}"><button class="erow per" data-act="open" data-id="${x.b.id}"><b class="et">${esc(periodText(x.p))}</b>${code(x.b)}<span class="el">${esc(x.label)}<small>${mixedKinds || x.p.kind === "survey" ? kindWord(x.p) + " · " : ""}${esc(x.b.name || "")}</small></span><span class="dl ${x.ps.cls}">${esc(stripKind(x.ps.text))}</span></button>${x.p.link ? `<a class="plink" href="${esc(x.p.link)}" target="_blank" rel="noopener noreferrer" aria-label="${kindWord(x.p)} 폼 열기">폼 ↗</a>` : ""}</div>`).join("")}</section>` : ""}
     ${
       free.length
         ? `<section class="card"><h2>전프레·무료 배포</h2>

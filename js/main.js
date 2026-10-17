@@ -787,24 +787,33 @@ document.addEventListener("click", async (e) => {
         }
         const amemo = (a.memo || "").trim().slice(0, 200),
           arecv = normRecv(a.recv, "");
-        const apf = validDate(a.preFrom),
-          apt = validDate(a.preTo),
-          aptt = (a.preToTime || "").trim() ? normTime(a.preToTime) : "";
-        if (aptt === null) {
-          toast(`‘${nick || "작가"}’ 마감 시각을 23:59처럼 적어 주세요`);
-          return;
-        }
-        if (apf && apt && apf > apt) {
-          toast(`‘${nick || "작가"}’ 시작일이 마감일보다 늦어요`);
-          return;
-        }
-        const plk = (a.preLink || "").trim() ? normLink(a.preLink) : "";
-        if (plk === null) {
-          toast(`‘${nick || "작가"}’ 폼 링크를 https://로 시작하게 적어 주세요`);
-          return;
-        }
+        /* 선입금(pre)·수요조사(sv) 기간: 켠 것만 저장 */
+        const per = (p, w) => {
+          const none = { from: "", to: "", time: "", link: "" };
+          if (p === "pre" ? a._pre === false : !a._sv) return none;
+          const from = validDate(a[p + "From"]),
+            to = validDate(a[p + "To"]),
+            time = (a[p + "ToTime"] || "").trim() ? normTime(a[p + "ToTime"]) : "";
+          if (time === null) {
+            toast(`‘${nick || "작가"}’ ${w} 마감 시각을 23:59처럼 적어 주세요`);
+            return null;
+          }
+          if (from && to && from > to) {
+            toast(`‘${nick || "작가"}’ ${w} 시작일이 마감일보다 늦어요`);
+            return null;
+          }
+          const link = (a[p + "Link"] || "").trim() ? normLink(a[p + "Link"]) : "";
+          if (link === null) {
+            toast(`‘${nick || "작가"}’ ${w} 폼 링크를 https://로 시작하게 적어 주세요`);
+            return null;
+          }
+          return { from, to, time, link };
+        };
+        const pp = per("pre", "선입금"),
+          sv = per("sv", "수요조사");
+        if (!pp || !sv) return;
         const imgs = [...new Set([...(a.imgs || []), ...parseUrls(a.imgIn)])].slice(0, 12);
-        if (nick || site || info || amemo || arecv.length || apf || apt || plk || imgs.length)
+        if (nick || site || info || amemo || arecv.length || pp.from || pp.to || pp.link || sv.from || sv.to || sv.link || imgs.length)
           artists.push({
             id: a.id || uid(),
             nick,
@@ -812,11 +821,14 @@ document.addEventListener("click", async (e) => {
             info,
             memo: amemo,
             recv: arecv,
-            preFrom: apf,
-            preTo: apt,
-            preToTime: aptt,
-            preLink: plk,
-            preKind: a.preKind === "survey" ? "survey" : "",
+            preFrom: pp.from,
+            preTo: pp.to,
+            preToTime: pp.time,
+            preLink: pp.link,
+            svFrom: sv.from,
+            svTo: sv.to,
+            svToTime: sv.time,
+            svLink: sv.link,
             hidden: !!a.hidden,
             imgs,
           });
@@ -1677,6 +1689,7 @@ if (/[?&]bctest\b/.test(location.search))
     sanitizeProj,
     parseLive,
     parseWitch,
+    boothPeriods,
     parseCode,
     makeCode,
     exportData,

@@ -190,24 +190,45 @@ function normalize(d) {
           ? b.artists
               .slice(0, 30)
               .filter((a) => a && typeof a === "object")
-              .map((a) => ({
-                id: sid(a.id) || uid(),
-                nick: str(a.nick || "")
-                  .trim()
-                  .slice(0, 30),
-                site: normSite(a.site) || "",
-                info: normLink(a.info) || "",
-                memo: str(a.memo || "").slice(0, 200),
-                recv: normRecv(a.recv, a.memo),
-                preFrom: validDate(a.preFrom),
-                preTo: validDate(a.preTo),
-                preToTime: normTime(a.preToTime) || "",
-                preLink: normLink(a.preLink) || "",
-                preKind: a.preKind === "survey" ? "survey" : "",
-                hidden: !!a.hidden,
-                imgs: Array.isArray(a.imgs) ? [...new Set(a.imgs.map((u) => normLink(u)).filter(Boolean))].slice(0, 12) : [],
-              }))
-              .filter((a) => a.imgs.length || a.nick || a.site || a.info || a.memo || a.recv.length || a.preFrom || a.preTo || a.preLink)
+              .map((a) => {
+                /* 예전 데이터: 기간 하나 + 종류(preKind). 수요조사였으면 수요조사 칸(sv*)으로 옮김 */
+                const oldSv = a.preKind === "survey" && !(a.svFrom || a.svTo || a.svLink);
+                return {
+                  id: sid(a.id) || uid(),
+                  nick: str(a.nick || "")
+                    .trim()
+                    .slice(0, 30),
+                  site: normSite(a.site) || "",
+                  info: normLink(a.info) || "",
+                  memo: str(a.memo || "").slice(0, 200),
+                  recv: normRecv(a.recv, a.memo),
+                  preFrom: oldSv ? "" : validDate(a.preFrom),
+                  preTo: oldSv ? "" : validDate(a.preTo),
+                  preToTime: oldSv ? "" : normTime(a.preToTime) || "",
+                  preLink: oldSv ? "" : normLink(a.preLink) || "",
+                  svFrom: validDate(oldSv ? a.preFrom : a.svFrom),
+                  svTo: validDate(oldSv ? a.preTo : a.svTo),
+                  svToTime: normTime(oldSv ? a.preToTime : a.svToTime) || "",
+                  svLink: normLink(oldSv ? a.preLink : a.svLink) || "",
+                  hidden: !!a.hidden,
+                  imgs: Array.isArray(a.imgs) ? [...new Set(a.imgs.map((u) => normLink(u)).filter(Boolean))].slice(0, 12) : [],
+                };
+              })
+              .filter(
+                (a) =>
+                  a.imgs.length ||
+                  a.nick ||
+                  a.site ||
+                  a.info ||
+                  a.memo ||
+                  a.recv.length ||
+                  a.preFrom ||
+                  a.preTo ||
+                  a.preLink ||
+                  a.svFrom ||
+                  a.svTo ||
+                  a.svLink
+              )
           : [],
         friends: Array.isArray(b.friends)
           ? [

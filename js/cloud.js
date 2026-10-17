@@ -248,7 +248,10 @@ function shareProj(st) {
         preTo: a.preTo || "",
         preToTime: a.preToTime || "",
         preLink: a.preLink || "",
-        preKind: a.preKind === "survey" ? "survey" : "",
+        svFrom: a.svFrom || "",
+        svTo: a.svTo || "",
+        svToTime: a.svToTime || "",
+        svLink: a.svLink || "",
         imgs: [...(a.imgs || [])],
       })),
       items: (b.items || [])

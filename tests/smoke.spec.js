@@ -142,3 +142,109 @@ test("무료 나눔 '안 받기'(수량 0)가 새로고침 뒤에도 유지된�
     ["o1", 0, false],
   ]);
 });
+
+test("선입금·수요조사를 동시에 가진 작가가 새로고침 뒤에도 남고, 예전 '수요조사' 데이터는 옮겨진다", async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => {
+    const T = window.__bcTest;
+    const S = T.normalize({
+      booths: [
+        {
+          id: "b1",
+          section: "A",
+          num: "1",
+          artists: [
+            {
+              id: "a1",
+              nick: "둘다",
+              svFrom: "2026-10-01",
+              svTo: "2026-10-10",
+              svLink: "https://forms.gle/sv",
+              preFrom: "2026-10-11",
+              preTo: "2026-10-20",
+              preLink: "https://witchform.com/pre",
+            },
+            {
+              id: "a2",
+              nick: "옛수요조사",
+              preKind: "survey",
+              preFrom: "2026-09-01",
+              preTo: "2026-09-05",
+              preLink: "https://forms.gle/old",
+            },
+            { id: "a3", svFrom: "2026-09-01" }, // 닉네임 없이 수요조사 기간만
+          ],
+        },
+      ],
+    });
+    T.setS(S);
+    T.flush();
+  });
+  await page.reload();
+  await page.waitForSelector("#top");
+  const got = await page.evaluate(() =>
+    window.__bcTest.getS().booths[0].artists.map((a) => [a.nick, a.svFrom, a.svLink, a.preFrom, a.preLink, "preKind" in a])
+  );
+  expect(got).toEqual([
+    ["둘다", "2026-10-01", "https://forms.gle/sv", "2026-10-11", "https://witchform.com/pre", false],
+    ["옛수요조사", "2026-09-01", "https://forms.gle/old", "", "", false],
+    ["", "2026-09-01", "", "", "", false],
+  ]);
+  expect(errors).toEqual([]);
+});
+
+test("부스 편집에서 수요조사·선입금을 둘 다 켜고 저장할 수 있다", async ({ page }) => {
+  const errors = await openApp(page);
+  await page.evaluate(() => {
+    const T = window.__bcTest;
+    T.setS(T.normalize({ booths: [{ id: "b1", section: "A", num: "1", name: "부스1", artists: [{ id: "a1", nick: "작가" }] }] }));
+    T.flush();
+  });
+  await page.reload();
+  await page.locator('[data-act="open"][data-id="b1"], .bcard[data-id="b1"]').first().click();
+  await page.click('[data-act="editBooth"]');
+  const svBtn = page.locator('[data-kind="sv"]');
+  await expect(page.locator('[data-kind="pre"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(svBtn).toHaveAttribute("aria-pressed", "false");
+  await svBtn.click();
+  await expect(svBtn).toHaveAttribute("aria-pressed", "true");
+  await page.fill('[data-af="svFrom"]', "2026-10-01");
+  await page.fill('[data-af="svTo"]', "2026-10-30");
+  await page.fill('[data-af="svLink"]', "forms.gle/abc");
+  await page.fill('[data-af="preFrom"]', "2026-11-01");
+  await page.fill('[data-af="preTo"]', "2026-11-10");
+  await page.fill('[data-af="preToTime"]', "2200");
+  await page.click('[data-act="saveBooth"]');
+  const a = await page.evaluate(() => window.__bcTest.getS().booths[0].artists[0]);
+  expect([a.svFrom, a.svTo, a.svLink, a.preFrom, a.preTo, a.preToTime]).toEqual([
+    "2026-10-01",
+    "2026-10-30",
+    "https://forms.gle/abc",
+    "2026-11-01",
+    "2026-11-10",
+    "22:00",
+  ]);
+  // 선입금을 끄고 저장하면 선입금 기간만 지워짐
+  await page.click('[data-act="editBooth"]');
+  await page.click('[data-kind="pre"]');
+  await expect(page.locator('[data-af="preFrom"]')).toHaveCount(0);
+  await page.click('[data-act="saveBooth"]');
+  const b = await page.evaluate(() => window.__bcTest.getS().booths[0].artists[0]);
+  expect([b.svFrom, b.preFrom, b.preTo]).toEqual(["2026-10-01", "", ""]);
+  expect(errors).toEqual([]);
+});
+
+test("기간 목록: 작가 한 명의 수요조사·선입금이 둘 다 나온다", async ({ page }) => {
+  await openApp(page);
+  const r = await page.evaluate(() => {
+    const T = window.__bcTest;
+    const S = T.normalize({
+      booths: [{ id: "b1", section: "A", num: "1", artists: [{ id: "a1", nick: "작가", svTo: "2099-01-01", preTo: "2099-02-01" }] }],
+    });
+    T.setS(S);
+    const P = T.shareProj(S).booths[0].artists[0];
+    return { kinds: T.boothPeriods(S.booths[0]).map((x) => x.p.kind || "pre"), shared: [P.svTo, P.preTo, "preKind" in P] };
+  });
+  expect(r.kinds).toEqual(["survey", "pre"]);
+  expect(r.shared).toEqual(["2099-01-01", "2099-02-01", false]);
+});
