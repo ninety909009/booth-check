@@ -467,13 +467,22 @@ function md(d) {
   const p = d.split("-");
   return `${+p[1]}/${+p[2]}`;
 }
+/* 작가 한 명이 선입금(pre*)과 수요조사(sv*)를 따로·동시에 가질 수 있음 */
 function periodOf(o) {
   return o && (o.preFrom || o.preTo || o.preLink)
-    ? { from: o.preFrom, to: o.preTo, time: o.preToTime, link: o.preLink || "", kind: o.preKind === "survey" ? "survey" : "" }
+    ? { from: o.preFrom, to: o.preTo, time: o.preToTime, link: o.preLink || "", kind: "" }
     : null;
 }
+function surveyOf(o) {
+  return o && (o.svFrom || o.svTo || o.svLink)
+    ? { from: o.svFrom, to: o.svTo, time: o.svToTime, link: o.svLink || "", kind: "survey" }
+    : null;
+}
+function periodsOf(o) {
+  return [surveyOf(o), periodOf(o)].filter(Boolean);
+}
 function kindWord(p) {
-  return p && (p.kind === "survey" || p.preKind === "survey") ? "수요조사" : "선입금";
+  return p && p.kind === "survey" ? "수요조사" : "선입금";
 }
 function stripKind(t) {
   return String(t).replace(/^(선입금|수요조사) /, "");
@@ -517,10 +526,8 @@ function artistPaid(b, a) {
 }
 function boothPeriods(b) {
   const out = [];
-  for (const a of b.artists) {
-    const ap = periodOf(a);
-    if (ap) out.push({ label: a.nick || "작가", a, p: ap, ps: periodState(ap, artistPaid(b, a)) });
-  }
+  for (const a of b.artists)
+    for (const ap of periodsOf(a)) out.push({ label: a.nick || "작가", a, p: ap, ps: periodState(ap, artistPaid(b, a)) });
   return out;
 }
 function periodRank(x) {
