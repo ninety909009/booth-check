@@ -1690,6 +1690,7 @@ if (/[?&]bctest\b/.test(location.search))
     parseLive,
     parseWitch,
     boothPeriods,
+    tweetRef,
     parseCode,
     makeCode,
     exportData,

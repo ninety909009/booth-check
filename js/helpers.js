@@ -49,6 +49,57 @@ function boothCode(b) {
   if (sp > 1 && /^\d+$/.test(n)) return b.section + n + "~" + String(parseInt(n, 10) + sp - 1).padStart(n.length, "0");
   return b.section + (n || "?");
 }
+/* 트위터(X) 주소 → {handle, status}. 글 주소면 status(글 번호)도. 아이디가 아닌 주소(검색 등)는 null */
+const X_NOT_USER = new Set([
+  "i",
+  "home",
+  "search",
+  "explore",
+  "intent",
+  "hashtag",
+  "share",
+  "settings",
+  "messages",
+  "notifications",
+  "compose",
+  "login",
+  "signup",
+  "tos",
+  "privacy",
+]);
+function tweetRef(v) {
+  const m = String(v || "")
+    .trim()
+    .match(/^(?:https?:\/\/)?(?:www\.|mobile\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})(?:\/status(?:es)?\/(\d{1,25}))?(?:[/?#].*)?$/i);
+  if (!m || X_NOT_USER.has(m[1].toLowerCase())) return null;
+  return { handle: m[1], status: m[2] || "" };
+}
+/* 트윗 작성자 닉네임: X의 공개 임베드 정보(oEmbed, 로그인 필요 없음).
+   브라우저에서 막히거나(CORS)·인터넷이 없거나·6초 넘으면 null → 아무것도 안 바꿈 */
+async function tweetAuthor(handle, status) {
+  if (!window.fetch || navigator.onLine === false) return null;
+  const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = setTimeout(() => ac && ac.abort(), 6000);
+  try {
+    const url = `https://twitter.com/${handle}/status/${status}`;
+    const r = await fetch("https://publish.twitter.com/oembed?omit_script=1&url=" + encodeURIComponent(url), {
+      signal: ac ? ac.signal : undefined,
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const name = str((d && d.author_name) || "")
+      .trim()
+      .slice(0, 30);
+    const h = (String((d && d.author_url) || "").match(/(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})/i) || [])[1] || "";
+    return name || h ? { name, handle: h } : null;
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 function linkHost(u) {
   try {
     return new URL(u).hostname.replace(/^www\./, "");
