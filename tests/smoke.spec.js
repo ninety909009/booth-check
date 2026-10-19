@@ -248,3 +248,64 @@ test("기간 목록: 작가 한 명의 수요조사·선입금이 둘 다 나온
   expect(r.kinds).toEqual(["survey", "pre"]);
   expect(r.shared).toEqual(["2099-01-01", "2099-02-01", false]);
 });
+
+async function openArtistEdit(page, artist) {
+  await page.evaluate((artist) => {
+    const T = window.__bcTest;
+    T.setS(T.normalize({ booths: [{ id: "b1", section: "A", num: "1", name: "부스1", artists: artist ? [artist] : [] }] }));
+    T.flush();
+  }, artist);
+  await page.reload();
+  await page.locator('[data-act="open"][data-id="b1"], .bcard[data-id="b1"]').first().click();
+  await page.click('[data-act="editBooth"]');
+  if (!artist) await page.click("#fArtAdd"); // 빈 작가는 저장되지 않으므로 화면에서 추가
+}
+const OEMBED = /publish\.twitter\.com\/oembed/;
+
+test("인포 링크가 트위터 글이면 비어 있는 사이트·닉네임을 채운다", async ({ page }) => {
+  const errors = await openApp(page);
+  let asked = "";
+  await page.route(OEMBED, (r) => {
+    asked = r.request().url();
+    r.fulfill({
+      status: 200,
+      headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+      body: JSON.stringify({ author_name: "부스 작가", author_url: "https://twitter.com/booth_artist" }),
+    });
+  });
+  await openArtistEdit(page, null);
+  await page.fill('[data-af="info"]', "https://x.com/booth_artist/status/123?s=20");
+  await expect(page.locator('[data-af="site"]')).toHaveValue("@booth_artist");
+  await expect(page.locator('[data-af="nick"]')).toHaveValue("부스 작가");
+  expect(asked).toContain(encodeURIComponent("https://twitter.com/booth_artist/status/123"));
+  await page.click('[data-act="saveBooth"]');
+  const a = await page.evaluate(() => window.__bcTest.getS().booths[0].artists[0]);
+  expect([a.nick, a.site, a.info]).toEqual(["부스 작가", "https://x.com/booth_artist", "https://x.com/booth_artist/status/123?s=20"]);
+  expect(errors).toEqual([]);
+});
+
+test("이미 적은 닉네임·사이트는 덮어쓰지 않는다", async ({ page }) => {
+  await openApp(page);
+  let calls = 0;
+  await page.route(OEMBED, (r) => {
+    calls++;
+    r.fulfill({ status: 200, headers: { "access-control-allow-origin": "*" }, body: '{"author_name":"다른 이름"}' });
+  });
+  await openArtistEdit(page, { id: "a1", nick: "내가 적은 이름", site: "@mine", info: "" });
+  await page.fill('[data-af="info"]', "https://x.com/someone/status/9");
+  await page.waitForTimeout(900);
+  await expect(page.locator('[data-af="nick"]')).toHaveValue("내가 적은 이름");
+  await expect(page.locator('[data-af="site"]')).toHaveValue("https://x.com/mine");
+  expect(calls).toBe(0);
+});
+
+test("X에서 닉네임을 못 받아와도 아이디는 채우고 오류가 없다", async ({ page }) => {
+  const errors = await openApp(page);
+  await page.route(OEMBED, (r) => r.abort());
+  await openArtistEdit(page, null);
+  await page.fill('[data-af="info"]', "https://twitter.com/abc_1/status/77");
+  await expect(page.locator('[data-af="site"]')).toHaveValue("@abc_1");
+  await page.waitForTimeout(900);
+  await expect(page.locator('[data-af="nick"]')).toHaveValue("");
+  expect(errors).toEqual([]);
+});

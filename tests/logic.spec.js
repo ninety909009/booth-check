@@ -185,3 +185,22 @@ test("normalize: 이상한 값이 들어와도 기본 모양을 갖춘다", asyn
   });
   expect(r).toEqual([true, true, true, true]);
 });
+
+test("tweetRef: 트위터 주소에서 아이디·글 번호를 읽는다", async () => {
+  const r = await run((T) => [
+    T.tweetRef("https://x.com/booth_artist/status/1844000000000000001?s=20"),
+    T.tweetRef("twitter.com/Abc_12/status/55"),
+    T.tweetRef("https://mobile.twitter.com/abc"),
+    T.tweetRef("https://x.com/search?q=a"),
+    T.tweetRef("https://x.com/i/status/1"),
+    T.tweetRef("https://www.pixiv.net/users/1"),
+  ]);
+  expect(r).toEqual([
+    { handle: "booth_artist", status: "1844000000000000001" },
+    { handle: "Abc_12", status: "55" },
+    { handle: "abc", status: "" },
+    null,
+    null,
+    null,
+  ]);
+});

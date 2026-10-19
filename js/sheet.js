@@ -1107,10 +1107,44 @@ ${isNew ? "" : `<button class="btn danger" data-act="delBooth">삭제</button>`}
       )
       .join("");
   };
+  /* 인포 링크가 트위터 글이면: 비어 있는 '사이트'는 @아이디로, 비어 있는 '닉네임'은 X에서 받아서 채움 (이미 적은 값은 안 건드림) */
+  const autoX = (k) => {
+    const a = draft.artists[k],
+      ref = a && tweetRef(a.info);
+    if (!ref) return;
+    const key = ref.handle + "/" + ref.status;
+    if (a._xKey === key) return;
+    a._xKey = key;
+    const setField = (f, v) => {
+      a[f] = v;
+      const el = fArt.querySelector(`[data-ak="${k}"][data-af="${f}"]`);
+      if (el) el.value = v;
+    };
+    if (!String(a.site || "").trim()) {
+      setField("site", "@" + ref.handle);
+      a._xSite = a.site;
+      toast(`트위터 링크에서 사이트를 @${ref.handle}로 채웠어요`);
+    }
+    if (!ref.status || String(a.nick || "").trim()) return;
+    tweetAuthor(ref.handle, ref.status).then((r) => {
+      if (!r || draft.artists[k] !== a || a._xKey !== key) return;
+      if (r.handle && a._xSite && a.site === a._xSite && r.handle.toLowerCase() !== ref.handle.toLowerCase())
+        setField("site", "@" + r.handle);
+      if (r.name && !String(a.nick || "").trim()) {
+        setField("nick", r.name);
+        toast(`닉네임을 ‘${r.name}’(으)로 채웠어요`);
+      }
+    });
+  };
+  let autoXT = null;
   fArt.addEventListener("input", (e) => {
     const t = e.target;
     if (t.dataset.ak == null) return;
     draft.artists[+t.dataset.ak][t.dataset.af] = t.value;
+    if (t.dataset.af === "info") {
+      clearTimeout(autoXT);
+      autoXT = setTimeout(() => autoX(+t.dataset.ak), 400);
+    }
   });
   const addImgs = (k, text) => {
     const a = draft.artists[k];
