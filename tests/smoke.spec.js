@@ -309,3 +309,58 @@ test("X에서 닉네임을 못 받아와도 아이디는 채우고 오류가 없
   await expect(page.locator('[data-af="nick"]')).toHaveValue("");
   expect(errors).toEqual([]);
 });
+
+async function openBooth(page, booth) {
+  await page.evaluate((booth) => {
+    const T = window.__bcTest;
+    T.setS(T.normalize({ booths: [booth] }));
+    T.flush();
+  }, booth);
+  await page.reload();
+  await page.locator(`[data-act="open"][data-id="${booth.id}"], .bcard[data-id="${booth.id}"]`).first().click();
+}
+
+test("작가가 여럿이면 묶음마다 ＋ 물품 버튼으로 그 작가 물품을 추가한다", async ({ page }) => {
+  const errors = await openApp(page);
+  await openBooth(page, {
+    id: "b1",
+    section: "A",
+    num: "1",
+    artists: [
+      { id: "a1", nick: "하나" },
+      { id: "a2", nick: "둘" },
+    ],
+  });
+  await expect(page.locator("#nArt")).toHaveCount(0); // 드롭다운 없음
+  await expect(page.locator("#qAdd")).toBeHidden();
+  await expect(page.locator('#bItems [data-act="addFor"]')).toHaveCount(3); // 공통 + 작가 2명
+  await page.click('#bItems [data-act="addFor"][data-aid="a2"]');
+  await expect(page.locator('.agbox[data-aid="a2"] #addBox')).toBeVisible();
+  await expect(page.locator("#addTitle")).toHaveText("물품 추가 · 둘");
+  await page.fill("#nName", "둘의 회지");
+  await page.fill("#nPrice", "5000");
+  await page.click("#nAdd");
+  // 추가한 뒤에도 같은 묶음에서 계속 적을 수 있음
+  await expect(page.locator('.agbox[data-aid="a2"] #addBox')).toBeVisible();
+  await expect(page.locator('.agbox[data-aid="a2"] .item')).toHaveCount(1);
+  await page.click('#bItems [data-act="addFor"][data-aid=""]');
+  await expect(page.locator("#addTitle")).toHaveText("물품 추가 · 공통");
+  await page.fill("#nName", "공통 엽서");
+  await page.click("#nAdd");
+  const items = await page.evaluate(() => window.__bcTest.getS().booths[0].items.map((i) => [i.name, i.artist]));
+  expect(items).toEqual([
+    ["둘의 회지", "a2"],
+    ["공통 엽서", ""],
+  ]);
+  expect(errors).toEqual([]);
+});
+
+test("작가가 한 명이면 예전처럼 아래 ‘물품 추가’ 버튼을 쓴다", async ({ page }) => {
+  await openApp(page);
+  await openBooth(page, { id: "b1", section: "A", num: "1", artists: [{ id: "a1", nick: "하나" }] });
+  await expect(page.locator('#bItems [data-act="addFor"]')).toHaveCount(0);
+  if (await page.locator("#addBox").isHidden()) await page.click("#qAdd");
+  await page.fill("#nName", "회지");
+  await page.click("#nAdd");
+  expect(await page.evaluate(() => window.__bcTest.getS().booths[0].items[0].artist)).toBe("a1");
+});
