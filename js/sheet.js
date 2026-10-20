@@ -394,6 +394,7 @@ function renderBoothSheet() {
     return;
   }
   const curArt = lastArt.bid === b.id && b.artists.some((a) => a.id === lastArt.aid) ? lastArt.aid : "";
+  sh.addArt = curArt; /* 작가가 여럿일 때 물품을 넣을 작가 (묶음마다 있는 ＋ 버튼으로 고름) */
   const hl = b.pos && S.halls.find((h) => h.id === b.pos.hall);
   sheet.innerHTML = `
     <div class="sh-grab" id="grab"><div class="handle"></div>
@@ -410,10 +411,9 @@ ${stamp(b)}
       <div class="addhead"><h4>구매 리스트</h4><span id="bCount" class="hc"></span><button class="btn ghost sm" data-act="wfOpen">윗치폼</button><button class="ibtn2 sm" data-act="bMore" id="iselBtn" aria-label="더 보기">${CI.more}</button></div>
       <div class="itembox" id="bItems"></div>
       <div id="iselBar"></div>
-      <button type="button" class="qadd" data-act="toggleAdd" id="qAdd" ${UIP.addOpen ? "hidden" : ""}>${CI.plus}<span>물품 추가 (이름, 가격)</span></button>
+      <button type="button" class="qadd" data-act="toggleAdd" id="qAdd" ${UIP.addOpen || b.artists.length > 1 ? "hidden" : ""}>${CI.plus}<span>물품 추가 (이름, 가격)</span></button>
       <div class="addbox" id="addBox" ${UIP.addOpen ? "" : "hidden"}>
-<div class="addboxh"><b>물품 추가</b><button type="button" class="btn ghost sm" data-act="toggleAdd">닫기</button></div>
-${b.artists.length > 1 ? `<select class="inp" id="nArt" aria-label="작가" style="margin-bottom:8px">${artOptions(b, curArt)}</select>` : ""}
+<div class="addboxh"><b id="addTitle">물품 추가</b><button type="button" class="btn ghost sm" data-act="toggleAdd">닫기</button></div>
 <div class="addtop">
   <select class="inp" id="nCat" aria-label="상품 종류">${catOptions(lastCat)}</select>
   <input class="inp" id="nName" placeholder="물품 이름" enterkeyhint="next">
@@ -469,11 +469,6 @@ ${b.artists.length > 1 ? `<select class="inp" id="nArt" aria-label="작가" styl
     document.querySelectorAll("#nType button").forEach((x) => x.setAttribute("aria-pressed", String(x === t)));
     document.getElementById("nPrice").placeholder = lastType === "free" ? "무료 (비워 두기)" : "가격(원)";
   });
-  const nArt = document.getElementById("nArt");
-  if (nArt)
-    nArt.addEventListener("change", () => {
-      lastArt = { bid: b.id, aid: nArt.value };
-    });
   const add = () => {
     const nm = document.getElementById("nName"),
       pr = document.getElementById("nPrice"),
@@ -497,7 +492,7 @@ ${b.artists.length > 1 ? `<select class="inp" id="nArt" aria-label="작가" styl
       note: "",
       cat: lastCat,
       sample: "",
-      artist: soleArtist(b) || (nArt ? nArt.value : ""),
+      artist: soleArtist(b) || (b.artists.length > 1 ? sh.addArt || "" : ""),
     });
     save();
     nm.value = "";
@@ -760,6 +755,27 @@ document.addEventListener(
   },
   true
 );
+function addForBtn(aid, name) {
+  return `<button type="button" class="aadd" data-act="addFor" data-aid="${aid}" aria-label="‘${esc(name)}’ 물품 추가" aria-pressed="false">＋ 물품</button>`;
+}
+/* 작가가 여럿이면 물품 추가 칸을 고른 작가 묶음 안에 둠 (한 명 이하면 원래 자리) */
+function placeAddBox(b) {
+  const box = document.getElementById("addBox"),
+    items = document.getElementById("bItems"),
+    q = document.getElementById("qAdd");
+  if (!box || !items || !q || !b) return;
+  const multi = b.artists.length > 1;
+  if (multi && !b.artists.some((a) => a.id === sh.addArt && !a.hidden)) sh.addArt = "";
+  const host = multi ? items.querySelector(`.agbox[data-aid="${sh.addArt || ""}"]`) : null;
+  if (host) host.appendChild(box);
+  else if (q.nextElementSibling !== box) q.after(box);
+  const t = document.getElementById("addTitle"),
+    k = b.artists.findIndex((a) => a.id === sh.addArt);
+  if (t) t.textContent = multi ? `물품 추가 · ${k >= 0 ? b.artists[k].nick || "작가 " + (k + 1) : "공통"}` : "물품 추가";
+  items
+    .querySelectorAll('[data-act="addFor"]')
+    .forEach((x) => x.setAttribute("aria-pressed", String(!box.hidden && x.dataset.aid === (sh.addArt || ""))));
+}
 function renderBoothItems() {
   const b = findBooth(sh && sh.id);
   if (!b) return;
@@ -775,7 +791,7 @@ function renderBoothItems() {
     const ids = new Set(b.artists.map((a) => a.id));
     if (multi) {
       const common = b.items.filter((i) => !ids.has(i.artist));
-      html += `<div class="agbox ${common.length ? "" : "ec"}" data-aid=""><div class="agrp" data-aid="" data-bid="${b.id}"><span class="an">공통</span></div>${common.length ? rows(common) : `<div class="aempty">여기에 놓으면 공통 물품이 돼요</div>`}</div>`;
+      html += `<div class="agbox ${common.length ? "" : "ec"}" data-aid=""><div class="agrp" data-aid="" data-bid="${b.id}"><span class="an">공통</span>${addForBtn("", "공통")}</div>${common.length ? rows(common) : `<div class="aempty">여기에 놓으면 공통 물품이 돼요</div>`}</div>`;
     }
     b.artists.forEach((a, k) => {
       const its = b.items.filter((i) => i.artist === a.id),
@@ -795,7 +811,7 @@ function renderBoothItems() {
         )
         .join("");
       html +=
-        `<div class="agbox" data-aid="${a.id}"><div class="agrp" data-aid="${a.id}" data-bid="${b.id}"><span class="an">${nm}</span>${apChips}${rcvHead(b, a, ro)}</div>${ro ? "" : rcvEditor(b, a)}` +
+        `<div class="agbox" data-aid="${a.id}"><div class="agrp" data-aid="${a.id}" data-bid="${b.id}"><span class="an">${nm}</span>${apChips}${rcvHead(b, a, ro)}${multi ? addForBtn(a.id, a.nick || "작가 " + (k + 1)) : ""}</div>${ro ? "" : rcvEditor(b, a)}` +
         (its.length ? rows(its) : `<div class="aempty">이 작가로 지정한 물품이 없어요</div>`) +
         `</div>`;
     });
@@ -808,11 +824,14 @@ function renderBoothItems() {
   }
   const anyImg = b.artists.some((a) => (a.imgs || []).length);
   if (ISEL && ISEL.bid !== b.id) ISEL = null;
+  const ab = document.getElementById("addBox");
+  if (ab && box.contains(ab)) document.getElementById("qAdd").after(ab); /* 다시 그릴 때 물품 추가 칸이 지워지지 않게 잠깐 빼 둠 */
   box.innerHTML =
     b.items.length || b.artists.length
       ? html
       : html +
         `<div class="empty">살 물품을 아래에서 추가하거나<br>${anyImg ? "인포 이미지를 보면서 적어 보세요." : "‘윗치폼’으로 한꺼번에 넣어 보세요."}</div>`;
+  placeAddBox(b);
   {
     const L = linesOf(b).filter((i) => !i.maybe),
       cnt = (t) => {

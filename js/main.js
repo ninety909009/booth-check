@@ -335,13 +335,34 @@ document.addEventListener("click", async (e) => {
       ]);
       break;
     }
+    case "addFor": {
+      /* 작가 묶음의 ＋ 물품: 그 작가로 물품 추가 칸을 엶 */
+      const b = sh && findBooth(sh.id);
+      if (!b) break;
+      sh.addArt = t.dataset.aid || "";
+      lastArt = { bid: b.id, aid: sh.addArt };
+      if (!UIP.addOpen) {
+        UIP.addOpen = true;
+        saveUIP();
+      }
+      const box = document.getElementById("addBox");
+      if (!box) break;
+      box.hidden = false;
+      placeAddBox(b);
+      const n = document.getElementById("nName");
+      if (n) n.focus({ preventScroll: true });
+      box.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      break;
+    }
     case "toggleAdd": {
       UIP.addOpen = !UIP.addOpen;
       saveUIP();
       const box = document.getElementById("addBox");
       if (box) box.hidden = !UIP.addOpen;
-      const qa = document.getElementById("qAdd");
-      if (qa) qa.hidden = UIP.addOpen;
+      const qa = document.getElementById("qAdd"),
+        tb = sh && sh.kind === "booth" ? findBooth(sh.id) : null;
+      if (qa) qa.hidden = UIP.addOpen || !!(tb && tb.artists.length > 1);
+      if (tb) placeAddBox(tb);
       if (UIP.addOpen) {
         const n = document.getElementById("nName");
         if (n) {
