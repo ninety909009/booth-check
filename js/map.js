@@ -50,6 +50,7 @@ function routeCfg() {
   if (!Array.isArray(r.order) || r.order.length !== 3 || !["on", "free", "pre"].every((k) => r.order.includes(k)))
     r.order = ["on", "free", "pre"];
   if (!r.start || typeof r.start !== "object") r.start = {};
+  if (!r.manual || typeof r.manual !== "object") r.manual = {}; /* 행사별로 직접 정한 부스 순서 [부스 id…] */
   return r;
 }
 function routeStartMark() {
@@ -381,7 +382,14 @@ function computeRoute() {
     }
     for (const x of bs) if (!(x.b.pos && hallIds.has(x.b.pos.hall))) unplaced.push({ ...x, g });
   }
-  return { stops, unplaced, start: sm };
+  /* 직접 정한 순서가 있으면 그대로. 그 뒤에 새로 살 것이 생긴 부스는 자동 순서대로 끝에 붙임 */
+  const man = cfg.manual[LIB.current];
+  if (Array.isArray(man) && man.length) {
+    const at = new Map(man.map((id, i) => [id, i]));
+    const kept = stops.filter((s) => at.has(s.b.id)).sort((x, y) => at.get(x.b.id) - at.get(y.b.id));
+    return { stops: kept.concat(stops.filter((s) => !at.has(s.b.id))), unplaced, start: sm, manual: true };
+  }
+  return { stops, unplaced, start: sm, manual: false };
 }
 function routeSvg(h, fr) {
   const R = mapRouteData;
@@ -597,7 +605,7 @@ function routePanel() {
   const rows = R.stops
     .map((s) => {
       n++;
-      return `<div class="rstop" data-act="rgo" data-id="${s.b.id}"><b class="rno" style="--rc:${ROUTE_C[s.g]}">${n}</b><span class="mini" style="--sc:${secColor(s.b.section)}">${esc(boothCode(s.b))}</span><span class="rnm">${s.r.must ? '<em class="rmust">★</em>' : ""}${esc(s.b.name || "이름 없는 부스")}<small>${routeCounts(s.r.n)}${multiHall ? " · " + esc(hallName(s.b.pos.hall)) : ""}</small></span><button type="button" class="btn ghost sm" data-act="open" data-id="${s.b.id}">열기</button></div>`;
+      return `<div class="rstop rs" data-act="rgo" data-id="${s.b.id}"><button type="button" class="rgrip" data-act="rgrip" data-rgrip aria-label="${esc(boothCode(s.b))} 순서 바꾸기 (끌거나 ↑↓)">⠿</button><b class="rno" style="--rc:${ROUTE_C[s.g]}">${n}</b><span class="mini" style="--sc:${secColor(s.b.section)}">${esc(boothCode(s.b))}</span><span class="rnm">${s.r.must ? '<em class="rmust">★</em>' : ""}${esc(s.b.name || "이름 없는 부스")}<small>${routeCounts(s.r.n)}${multiHall ? " · " + esc(hallName(s.b.pos.hall)) : ""}</small></span><button type="button" class="btn ghost sm" data-act="open" data-id="${s.b.id}">열기</button></div>`;
     })
     .join("");
   const un = R.unplaced.length
@@ -614,8 +622,11 @@ function routePanel() {
     ${
       UIP.routeFold
         ? ""
-        : `<div class="rorder">${order}</div>
-    <p class="rhint">남은 물품이 있는 부스만, 그룹 순서 → ★꼭 사기 → 가까운 순으로 이었어요. 고민중 물품은 빠져요.</p>
+        : R.manual
+          ? `<div class="rmanual"><p class="rhint">직접 정한 순서예요. ⠿를 끌어서 바꿀 수 있어요. 새로 살 것이 생긴 부스는 끝에 붙어요.</p><button type="button" class="btn ghost sm" data-act="rauto">자동 순서로</button></div>
+    <div class="rlist">${rows || (R.unplaced.length ? "" : `<p class="rhint" style="margin:6px 0">남은 물품이 있는 부스가 없어요. 다 챙겼어요!</p>`)}${un}</div>`
+          : `<div class="rorder">${order}</div>
+    <p class="rhint">남은 물품이 있는 부스만, 그룹 순서 → ★꼭 사기 → 가까운 순으로 이었어요. 고민중 물품은 빠져요. ⠿를 끌면 순서를 직접 바꿀 수 있어요.</p>
     <div class="rlist">${rows || (R.unplaced.length ? "" : `<p class="rhint" style="margin:6px 0">남은 물품이 있는 부스가 없어요. 다 챙겼어요!</p>`)}${un}</div>`
     }
   </div>`;
@@ -778,6 +789,72 @@ function renderMapItems() {
         ? `<div class="mapempty"><strong>${esc(h.name)} 배치도가 비어 있어요</strong>${mapEdit ? "아래에서 부스를 눌러 놓거나 ‘자동 배치’를 눌러 보세요." : "‘배치 편집’을 눌러 부스를 놓아 보세요."}</div>`
         : "";
 }
+/* 동선 목록 순서 바꾸기: ⠿를 끌거나(마우스·터치), 키보드 ↑↓ */
+function saveRouteOrder(ids) {
+  routeCfg().manual[LIB.current] = ids;
+  saveUIP();
+  renderMapItems();
+  renderMapBottom();
+}
+function bindRouteDrag(list) {
+  const rowsIds = () => [...list.querySelectorAll(".rstop.rs")].map((r) => r.dataset.id);
+  list.addEventListener("pointerdown", (e) => {
+    const g = e.target.closest("[data-rgrip]");
+    if (!g || (e.pointerType === "mouse" && e.button !== 0)) return;
+    e.preventDefault();
+    const row = g.closest(".rstop"),
+      before = rowsIds().join();
+    row.classList.add("rdrag");
+    /* 행을 옮기면 pointer capture가 풀리므로, 움직임은 화면 전체(window)에서 받음 */
+    const pid = e.pointerId;
+    let scrollT = null;
+    const move = (ev) => {
+      if (ev.pointerId !== pid) return;
+      const y = ev.clientY,
+        lr = list.getBoundingClientRect();
+      clearInterval(scrollT);
+      if (y < lr.top + 30) scrollT = setInterval(() => (list.scrollTop -= 8), 16);
+      else if (y > lr.bottom - 30) scrollT = setInterval(() => (list.scrollTop += 8), 16);
+      let nx = row.nextElementSibling,
+        pv = row.previousElementSibling;
+      while (nx && nx.classList.contains("rs") && y > nx.getBoundingClientRect().top + nx.offsetHeight / 2) {
+        nx.after(row);
+        nx = row.nextElementSibling;
+      }
+      while (pv && pv.classList.contains("rs") && y < pv.getBoundingClientRect().top + pv.offsetHeight / 2) {
+        pv.before(row);
+        pv = row.previousElementSibling;
+      }
+    };
+    const up = (ev) => {
+      if (ev.pointerId !== pid) return;
+      clearInterval(scrollT);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      row.classList.remove("rdrag");
+      const ids = rowsIds();
+      if (ids.join() !== before) saveRouteOrder(ids);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  });
+  list.addEventListener("keydown", (e) => {
+    const g = e.target.closest("[data-rgrip]");
+    if (!g || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    e.preventDefault();
+    const ids = rowsIds(),
+      id = g.closest(".rstop").dataset.id,
+      i = ids.indexOf(id),
+      j = e.key === "ArrowUp" ? i - 1 : i + 1;
+    if (i < 0 || j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    saveRouteOrder(ids);
+    const ng = $("mapbottom").querySelector(`.rstop[data-id="${id}"] [data-rgrip]`);
+    if (ng) ng.focus();
+  });
+}
 function renderMapBottom() {
   const el = $("mapbottom");
   if (!el) return;
@@ -809,7 +886,10 @@ function renderMapBottom() {
       top = sc ? sc.scrollTop : 0;
     el.innerHTML = routePanel();
     const nl = el.querySelector(".rlist");
-    if (nl) nl.scrollTop = top;
+    if (nl) {
+      nl.scrollTop = top;
+      bindRouteDrag(nl);
+    }
     const sel = $("rStart");
     if (sel)
       sel.addEventListener("change", () => {

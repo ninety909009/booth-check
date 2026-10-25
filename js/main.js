@@ -504,6 +504,14 @@ document.addEventListener("click", async (e) => {
       renderMapBottom();
       requestAnimationFrame(() => applyView());
       break;
+    case "rauto": {
+      delete routeCfg().manual[LIB.current];
+      saveUIP();
+      renderMapItems();
+      renderMapBottom();
+      toast("자동 순서로 되돌렸어요");
+      break;
+    }
     case "rswap": {
       const o = routeCfg().order,
         k = +t.dataset.k;

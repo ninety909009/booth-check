@@ -1728,6 +1728,39 @@ main.mapmode {
   border-top: 1px solid var(--line);
   cursor: pointer;
 }
+/* 동선 순서 바꾸기 손잡이 */
+.rgrip {
+  flex: none;
+  width: 28px;
+  height: 32px;
+  margin: 0 -4px 0 -2px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+}
+.rstop.rdrag {
+  background: var(--pre-soft);
+  border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  position: relative;
+  z-index: 1;
+}
+.rstop.rdrag .rgrip {
+  cursor: grabbing;
+}
+.rmanual {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rmanual .rhint {
+  flex: 1;
+  min-width: 0;
+}
 .rstop:first-child {
   border-top: 0;
 }
