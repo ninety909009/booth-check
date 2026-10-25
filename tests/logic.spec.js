@@ -252,3 +252,30 @@ test("parseInfoText: 한 줄짜리, 종류 말 없이 폼만, 해 넘김, 마감
   expect(r[2]).toEqual({ sv: { from: "2026-11-02", to: "2026-11-09", link: "https://docs.google.com/forms/d/e/x/viewform" } });
   expect(r[3]).toEqual({});
 });
+
+test("parseInfoText: 실제 인포 예시 (TMM, 10-22 10:01 ~ 10-28 10:01)", async () => {
+  const text = [
+    "🏨버-4 해즈빈호텔 666호실",
+    "잘부탁드립니다✨🙇‍♀️",
+    "",
+    "선입금폼(현장수령):",
+    "https://tmm.im/p/72708",
+    "🗓 10-22 10:01 ~ 10-28 10:01",
+    "",
+    "📍현장판매분은 극소량이며 모든 굿즈는 한정수량,소량입니다",
+    "📍현장 결제는 계좌이체 (토스,카카오뱅크)또는 금액에 딱 맞는 현금만 받습니다",
+  ].join("\n");
+  const r = await run((T, t) => T.parseInfoText(t, {}, new Date("2026-10-20T12:00:00+09:00")), text);
+  expect(r).toEqual({ pre: { link: "https://tmm.im/p/72708", from: "2026-10-22", to: "2026-10-28", time: "10:01" } });
+});
+
+test("parseInfoText: 하이픈 날짜가 전화번호·개수와 헷갈리지 않는다", async () => {
+  const r = await run((T) => [
+    T.parseInfoText("선입금 문의 010-1234-5678", {}, null),
+    T.parseInfoText("선입금 1-2개씩 구매 가능", {}, null),
+    T.parseInfoText("선입금 2026-11-01 ~ 2026-11-05", {}, null),
+  ]);
+  expect(r[0]).toEqual({});
+  expect(r[1]).toEqual({});
+  expect(r[2]).toEqual({ pre: { from: "2026-11-01", to: "2026-11-05" } });
+});

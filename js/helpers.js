@@ -217,16 +217,16 @@ function formKind(url, label) {
   }
   const s = host + " " + String(label || "").toLowerCase();
   if (/witchform\./.test(s)) return "pre";
-  if (/tmm/.test(s)) return "pre"; /* TMM 주소 형식은 확실하지 않아서 'tmm'이 들어가면 선입금 폼으로 봄 */
+  if (/tmm/.test(s)) return "pre"; /* TMM: tmm.im/p/번호 */
   if (/forms\.gle|docs\.google\.com|form\.naver\.com/.test(s)) return "sv";
   return null;
 }
 const KW_SV = /수요\s*조사|수요\s*파악|수요\s*폼|수요\s*확인/g;
 const KW_PRE = /선\s*입금|선입|예약\s*(?:판매|구매|폼)|통판|사전\s*(?:예약|구매)|결제\s*폼|입금\s*기간/g;
 const RANGE_SEP = /^\s*(?:~|～|〜|∼|-|–|—|부터|에서)\s*~?\s*$/;
-/* 한 줄에서 날짜(+시각) 찾기: 10/1, 10.1, 10월 1일, 2026.10.01, (화), 23:59, 23시 59분, 오후 11시, 자정 */
+/* 한 줄에서 날짜(+시각) 찾기: 10/1, 10.1, 10-22, 10월 1일, 2026.10.01, (화), 23:59, 23시 59분, 오후 11시, 자정 */
 function findDates(line) {
-  const re = /(?:(\d{4})\s*[./년-]\s*)?(\d{1,2})\s*(?:[./]|월\s*)\s*(\d{1,2})(?!\d)(?:\s*일)?/g;
+  const re = /(?:(\d{4})\s*[./년-]\s*)?(\d{1,2})\s*(?:[./-]|월\s*)\s*(\d{1,2})(?!\d)(?:\s*일)?/g;
   const out = [];
   let m;
   while ((m = re.exec(line))) {
