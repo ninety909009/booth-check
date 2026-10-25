@@ -1168,7 +1168,8 @@ ${isNew ? "" : `<button class="btn danger" data-act="delBooth">삭제</button>`}
       siteMsg = `사이트 @${ref.handle}`;
     }
     const perEmpty = (p) => empty(p + "From") && empty(p + "To") && empty(p + "Link");
-    const need = ref.status && (empty("nick") || !(a.imgs || []).length || perEmpty("sv") || perEmpty("pre"));
+    const PF = ["From", "To", "Link"];
+    const need = ref.status && (empty("nick") || !(a.imgs || []).length || ["sv", "pre"].some((p) => PF.some((f) => empty(p + f))));
     if (!need) {
       if (siteMsg) toast(`트위터 링크에서 채웠어요: ${siteMsg}`);
       return;
@@ -1194,14 +1195,24 @@ ${isNew ? "" : `<button class="btn danger" data-act="delBooth">삭제</button>`}
         ["pre", "선입금"],
       ]) {
         const x = P[p];
-        if (!x || !perEmpty(p)) continue;
-        a[p + "From"] = x.from || "";
-        a[p + "To"] = x.to || "";
-        a[p + "ToTime"] = x.time || "";
-        a[p + "Link"] = x.link || "";
+        if (!x) continue;
+        /* 기간(시작·마감·시각)은 시작일·마감일이 둘 다 비었을 때만 한 번에 (섞이면 시작이 마감보다 늦어질 수 있음).
+           폼 링크는 따로: 기간을 적어 뒀어도 링크가 비어 있으면 채움 */
+        const done = [];
+        if ((x.from || x.to) && empty(p + "From") && empty(p + "To")) {
+          a[p + "From"] = x.from || "";
+          a[p + "To"] = x.to || "";
+          if (x.time && empty(p + "ToTime")) a[p + "ToTime"] = x.time;
+          done.push("기간");
+        }
+        if (x.link && empty(p + "Link")) {
+          a[p + "Link"] = x.link;
+          done.push("Link");
+        }
+        if (!done.length) continue;
         a["_" + p] = true;
         redraw = true;
-        got.push(w + " " + [x.from || x.to ? "기간" : "", x.link ? "폼" : ""].filter(Boolean).join("·"));
+        got.push(w + " " + done.map((f) => (f === "Link" ? "폼" : f)).join("·"));
       }
       /* 수요조사만 찾았고 선입금 칸이 비어 있으면, 빈 선입금 칸은 접어 둠 */
       if (P.sv && !P.pre && perEmpty("pre") && a._pre) {
