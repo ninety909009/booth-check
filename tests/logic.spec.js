@@ -279,3 +279,13 @@ test("parseInfoText: 하이픈 날짜가 전화번호·개수와 헷갈리지 �
   expect(r[1]).toEqual({});
   expect(r[2]).toEqual({ pre: { from: "2026-11-01", to: "2026-11-05" } });
 });
+
+test("parseInfoText: 다른 링크가 먼저 나와도 윗치폼 링크를 폼으로 고른다", async () => {
+  const text = [
+    "📢 선입금 안내 10/22 ~ 10/28",
+    "샘플 링크: https://posty.pe/abc123",
+    "선입금폼 👉 https://witchform.com/payform/?uuid=aaaa-bbbb",
+  ].join("\n");
+  const r = await run((T, t) => T.parseInfoText(t, {}, new Date("2026-10-20")), text);
+  expect(r.pre.link).toBe("https://witchform.com/payform/?uuid=aaaa-bbbb");
+});

@@ -288,7 +288,8 @@ function parseInfoText(text, labels, date) {
     hasPre = /선\s*입금|선입|예약\s*(?:판매|구매)|통판/.test(all);
   const only = hasSv && !hasPre ? "sv" : hasPre && !hasSv ? "pre" : "";
   let cur = "";
-  const pending = [];
+  const pending = [],
+    lp = {};
   for (const line of all.split(/\n+/)) {
     const kws = [];
     for (const [k, re] of [
@@ -339,7 +340,16 @@ function parseInfoText(text, labels, date) {
       const fk = formKind(u, (labels || {})[u]);
       const formish = fk || /폼|form|신청|링크|주소/i.test(line);
       if (!formish || /(?:x|twitter)\.com|pbs\.twimg\.com/i.test(u)) continue;
-      put(lineKind || cur || fk || only, "link", normLink(u) || "");
+      /* 윗치폼·TMM·구글폼 같은 알려진 폼 주소가 '링크' 말이 붙은 다른 주소(포스타입 등)보다 우선 */
+      const k = lineKind || cur || fk || only,
+        lk = normLink(u) || "",
+        pr = fk ? 2 : 1;
+      if (!k || !lk) continue;
+      out[k] = out[k] || {};
+      if (!out[k].link || pr > (lp[k] || 0)) {
+        out[k].link = lk;
+        lp[k] = pr;
+      }
     }
   }
   /* 종류 말이 없던 기간: 폼이 한 종류뿐이면 그쪽 */

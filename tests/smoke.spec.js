@@ -413,6 +413,31 @@ test("인포 트윗을 읽어 닉네임·수요조사/선입금 기간·폼·인
   expect(errors).toEqual([]);
 });
 
+test("선입금 기간을 적어 뒀어도 비어 있는 폼 링크는 트윗에서 채운다", async ({ page }) => {
+  await openApp(page);
+  await page.route(SYND, (r) =>
+    r.fulfill({
+      status: 200,
+      headers: { "access-control-allow-origin": "*" },
+      body: JSON.stringify({
+        text: "선입금 10/15~10/25\n샘플 링크 https://t.co/s\n폼 https://t.co/w",
+        user: { name: "x" },
+        entities: {
+          urls: [
+            { url: "https://t.co/s", expanded_url: "https://posty.pe/sample" },
+            { url: "https://t.co/w", expanded_url: "https://witchform.com/payform/?uuid=1" },
+          ],
+        },
+      }),
+    })
+  );
+  await openArtistEdit(page, { id: "a1", nick: "작가", preFrom: "2026-11-01" });
+  await page.fill('[data-af="info"]', "https://x.com/someone/status/9");
+  await expect(page.locator('[data-af="preLink"]')).toHaveValue("https://witchform.com/payform/?uuid=1");
+  await expect(page.locator('[data-af="preFrom"]')).toHaveValue("2026-11-01");
+  await expect(page.locator('[data-af="preTo"]')).toHaveValue(""); // 시작일만 적어 둔 기간은 건드리지 않음
+});
+
 test("이미 적은 기간·이미지는 트윗을 읽어도 덮어쓰지 않는다", async ({ page }) => {
   await openApp(page);
   await page.route(SYND, (r) =>
