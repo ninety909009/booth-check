@@ -1127,6 +1127,27 @@ ${isNew ? "" : `<button class="btn danger" data-act="delBooth">삭제</button>`}
       .join("");
   };
   /* 인포 링크가 트위터 글이면: 비어 있는 '사이트'는 @아이디로, 비어 있는 '닉네임'은 X에서 받아서 채움 (이미 적은 값은 안 건드림) */
+  /* 그림을 다시 그려도 입력 중이던 칸의 커서를 지킴 */
+  const redrawArtists = () => {
+    const ae = document.activeElement,
+      ak = ae && ae.dataset ? ae.dataset.ak : null,
+      af = ae && ae.dataset ? ae.dataset.af : null;
+    let pos = null;
+    try {
+      pos = ae ? ae.selectionStart : null;
+    } catch (e) {}
+    drawArtists();
+    if (ak == null) return;
+    const el = fArt.querySelector(`[data-ak="${ak}"][data-af="${af}"]`);
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    try {
+      if (pos != null) el.setSelectionRange(pos, pos);
+    } catch (e) {}
+  };
+  /* 인포 링크가 트위터 글이면: 비어 있는 칸만 채움 (이미 적은 값은 안 건드림)
+     - 사이트: 주소의 @아이디 (바로)
+     - 닉네임·수요조사/선입금 기간·폼 링크·인포 이미지: 트윗을 받아와서 (안 되면 아무것도 안 함) */
   const autoX = (k) => {
     const a = draft.artists[k],
       ref = a && tweetRef(a.info);
@@ -1139,20 +1160,61 @@ ${isNew ? "" : `<button class="btn danger" data-act="delBooth">삭제</button>`}
       const el = fArt.querySelector(`[data-ak="${k}"][data-af="${f}"]`);
       if (el) el.value = v;
     };
-    if (!String(a.site || "").trim()) {
+    const empty = (f) => !String(a[f] || "").trim();
+    let siteMsg = "";
+    if (empty("site")) {
       setField("site", "@" + ref.handle);
       a._xSite = a.site;
-      toast(`트위터 링크에서 사이트를 @${ref.handle}로 채웠어요`);
+      siteMsg = `사이트 @${ref.handle}`;
     }
-    if (!ref.status || String(a.nick || "").trim()) return;
-    tweetAuthor(ref.handle, ref.status).then((r) => {
-      if (!r || draft.artists[k] !== a || a._xKey !== key) return;
+    const perEmpty = (p) => empty(p + "From") && empty(p + "To") && empty(p + "Link");
+    const need = ref.status && (empty("nick") || !(a.imgs || []).length || perEmpty("sv") || perEmpty("pre"));
+    if (!need) {
+      if (siteMsg) toast(`트위터 링크에서 채웠어요: ${siteMsg}`);
+      return;
+    }
+    if (siteMsg) toast(`트위터 링크에서 ${siteMsg}를 채웠어요. 트윗 내용을 읽는 중…`);
+    tweetInfo(ref.handle, ref.status).then((r) => {
+      if (draft.artists[k] !== a || a._xKey !== key) return;
+      if (!r) {
+        if (siteMsg) toast(`트윗 내용은 읽지 못했어요. ${siteMsg}만 채웠어요`);
+        return;
+      }
+      const got = siteMsg ? [siteMsg] : [];
       if (r.handle && a._xSite && a.site === a._xSite && r.handle.toLowerCase() !== ref.handle.toLowerCase())
         setField("site", "@" + r.handle);
-      if (r.name && !String(a.nick || "").trim()) {
+      if (r.name && empty("nick")) {
         setField("nick", r.name);
-        toast(`닉네임을 ‘${r.name}’(으)로 채웠어요`);
+        got.push(`닉네임 ‘${r.name}’`);
       }
+      let redraw = false;
+      const P = parseInfoText(r.text, r.labels, r.date);
+      for (const [p, w] of [
+        ["sv", "수요조사"],
+        ["pre", "선입금"],
+      ]) {
+        const x = P[p];
+        if (!x || !perEmpty(p)) continue;
+        a[p + "From"] = x.from || "";
+        a[p + "To"] = x.to || "";
+        a[p + "ToTime"] = x.time || "";
+        a[p + "Link"] = x.link || "";
+        a["_" + p] = true;
+        redraw = true;
+        got.push(w + " " + [x.from || x.to ? "기간" : "", x.link ? "폼" : ""].filter(Boolean).join("·"));
+      }
+      /* 수요조사만 찾았고 선입금 칸이 비어 있으면, 빈 선입금 칸은 접어 둠 */
+      if (P.sv && !P.pre && perEmpty("pre") && a._pre) {
+        a._pre = false;
+        redraw = true;
+      }
+      if (!(a.imgs || []).length && r.images.length) {
+        a.imgs = r.images.slice(0, 12);
+        redraw = true;
+        got.push(`인포 이미지 ${a.imgs.length}장`);
+      }
+      if (redraw) redrawArtists();
+      toast(got.length ? `트윗에서 채웠어요: ${got.join(", ")}. 맞는지 한 번 확인해 주세요` : "트윗에서 더 채울 내용을 찾지 못했어요");
     });
   };
   let autoXT = null;
@@ -1172,7 +1234,7 @@ ${isNew ? "" : `<button class="btn danger" data-act="delBooth">삭제</button>`}
       if (String(text || "").trim()) toast("https://로 시작하는 이미지 주소를 넣어 주세요");
       return false;
     }
-    a.imgs = [...new Set([...(a.imgs || []), ...urls])].slice(0, 12);
+    a.imgs = [...new Set([...(a.imgs || []), ...urls.map(twimgBig)])].slice(0, 12);
     a.imgIn = "";
     drawArtists();
     const n = fArt.querySelector(`[data-ak="${k}"][data-af="imgIn"]`);
@@ -1195,6 +1257,48 @@ ${isNew ? "" : `<button class="btn danger" data-act="delBooth">삭제</button>`}
       e.preventDefault();
       addImgs(+t.dataset.ak, t.value + " " + text);
     }
+  });
+  /* 트위터 등에서 사진을 끌어다 놓으면 인포 이미지로 추가 (작가 칸 어디에 놓아도 됨) */
+  const dropK = (e) => {
+    const box = e.target.closest && e.target.closest(".artedit");
+    const el = box && box.querySelector("[data-ak]");
+    return el ? +el.dataset.ak : -1;
+  };
+  fArt.addEventListener("dragover", (e) => {
+    if (dropK(e) < 0) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    e.target.closest(".artedit").classList.add("dropimg");
+  });
+  fArt.addEventListener("dragleave", (e) => {
+    const box = e.target.closest && e.target.closest(".artedit");
+    if (box && !box.contains(e.relatedTarget)) box.classList.remove("dropimg");
+  });
+  fArt.addEventListener("drop", (e) => {
+    const k = dropK(e);
+    if (k < 0) return;
+    e.preventDefault();
+    fArt.querySelectorAll(".dropimg").forEach((x) => x.classList.remove("dropimg"));
+    const d = dropUrls(e.dataTransfer);
+    if (d.imgs.length) {
+      addImgs(k, d.imgs.join(" "));
+      toast(`인포 이미지 ${d.imgs.length}장을 넣었어요`);
+      return;
+    }
+    const tw = d.links.map(tweetRef).find((x) => x && x.status);
+    if (tw) {
+      toast("트윗에서 사진을 찾는 중…");
+      tweetInfo(tw.handle, tw.status).then((r) => {
+        const imgs = r ? (d.photo ? r.images.slice(d.photo - 1, d.photo) : r.images) : [];
+        if (!imgs.length) return toast("트윗 사진을 가져오지 못했어요. 사진을 길게 눌러 ‘이미지 주소 복사’ 후 붙여 넣어 주세요");
+        addImgs(k, imgs.join(" "));
+        toast(`인포 이미지 ${imgs.length}장을 넣었어요`);
+      });
+      return;
+    }
+    if (d.links.length) return void addImgs(k, d.links.join(" "));
+    if (e.dataTransfer.files && e.dataTransfer.files.length)
+      toast("사진 파일은 저장할 곳이 없어서 넣을 수 없어요. 트위터에서 사진을 끌어오거나 이미지 주소를 붙여 넣어 주세요");
   });
   fArt.addEventListener("click", (e) => {
     const rc = e.target.closest("[data-rk]");

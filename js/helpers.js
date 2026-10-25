@@ -74,31 +74,281 @@ function tweetRef(v) {
   if (!m || X_NOT_USER.has(m[1].toLowerCase())) return null;
   return { handle: m[1], status: m[2] || "" };
 }
-/* 트윗 작성자 닉네임: X의 공개 임베드 정보(oEmbed, 로그인 필요 없음).
-   브라우저에서 막히거나(CORS)·인터넷이 없거나·6초 넘으면 null → 아무것도 안 바꿈 */
-async function tweetAuthor(handle, status) {
+/* ---------- 트윗 인포 읽기 ---------- */
+/* 트위터 사진 주소 → 큰 사진 주소 (작은 미리보기 크기로 끌어와도 크게 보이게) */
+function twimgBig(u) {
+  const m = String(u || "").match(/^https?:\/\/pbs\.twimg\.com\/media\/([\w-]+)(?:\.(jpe?g|png|webp|gif))?(?::\w+)?(?:\?([^#]*))?$/i);
+  if (!m) return u;
+  const q = new URLSearchParams(m[3] || "");
+  const fmt = q.get("format") || (m[2] ? m[2].toLowerCase().replace("jpeg", "jpg") : "jpg");
+  return `https://pbs.twimg.com/media/${m[1]}?format=${fmt}&name=large`;
+}
+async function fetchJSON(url, ms) {
   if (!window.fetch || navigator.onLine === false) return null;
   const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const timer = setTimeout(() => ac && ac.abort(), 6000);
+  const timer = setTimeout(() => ac && ac.abort(), ms || 6000);
   try {
-    const url = `https://twitter.com/${handle}/status/${status}`;
-    const r = await fetch("https://publish.twitter.com/oembed?omit_script=1&url=" + encodeURIComponent(url), {
-      signal: ac ? ac.signal : undefined,
-      credentials: "omit",
-      referrerPolicy: "no-referrer",
-    });
-    if (!r.ok) return null;
-    const d = await r.json();
-    const name = str((d && d.author_name) || "")
-      .trim()
-      .slice(0, 30);
-    const h = (String((d && d.author_url) || "").match(/(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})/i) || [])[1] || "";
-    return name || h ? { name, handle: h } : null;
+    const r = await fetch(url, { signal: ac ? ac.signal : undefined, credentials: "omit", referrerPolicy: "no-referrer" });
+    return r.ok ? await r.json() : null;
   } catch (e) {
     return null;
   } finally {
     clearTimeout(timer);
   }
+}
+/* X 임베드 위젯이 쓰는 글 번호 토큰 (공개 위젯과 같은 계산) */
+function tweetToken(id) {
+  return ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\.)/g, "");
+}
+/* 트윗 정보: ① X 임베드용 공개 데이터(syndication: 글·링크·사진) → ② oEmbed(글·작성자만, 링크는 t.co 짧은 주소)
+   로그인 필요 없음. 브라우저에서 막히거나(CORS)·인터넷이 없거나·6초 넘으면 다음 방법, 둘 다 안 되면 null */
+async function tweetInfo(handle, status) {
+  const s = await fetchJSON(`https://cdn.syndication.twimg.com/tweet-result?id=${status}&token=${tweetToken(status)}&lang=ko`);
+  if (s && typeof s === "object" && (s.text || s.user)) {
+    const ents = (s.entities && s.entities.urls) || [];
+    let text = String((s.note_tweet && s.note_tweet.text) || s.text || "");
+    const labels = {};
+    for (const e of ents)
+      if (e && e.url && e.expanded_url) {
+        text = text.split(e.url).join(e.expanded_url);
+        labels[e.expanded_url] = e.display_url || "";
+      }
+    const media = ((s.entities && s.entities.media) || []).map((m) => m && m.url).filter(Boolean);
+    for (const u of media) text = text.split(u).join("");
+    const imgs = []
+      .concat((s.mediaDetails || []).filter((m) => m && m.type === "photo").map((m) => m.media_url_https))
+      .concat((s.photos || []).map((p) => p && p.url))
+      .filter(Boolean)
+      .map(twimgBig);
+    const u = s.user || {};
+    return {
+      name: str(u.name || "")
+        .trim()
+        .slice(0, 30),
+      handle: /^[A-Za-z0-9_]{1,15}$/.test(u.screen_name || "") ? u.screen_name : "",
+      text,
+      labels,
+      images: [...new Set(imgs)].slice(0, 12),
+      date: s.created_at ? new Date(s.created_at) : null,
+    };
+  }
+  const url = `https://twitter.com/${handle}/status/${status}`;
+  const o = await fetchJSON("https://publish.twitter.com/oembed?omit_script=1&lang=en&url=" + encodeURIComponent(url));
+  if (!o || typeof o !== "object") return null;
+  let text = "",
+    date = null;
+  const labels = {};
+  try {
+    const doc = new DOMParser().parseFromString(String(o.html || ""), "text/html");
+    const p = doc.querySelector("blockquote p");
+    if (p) {
+      p.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
+      p.querySelectorAll("a[href]").forEach((a) => {
+        const h = a.getAttribute("href");
+        if (/^https?:\/\/t\.co\//.test(h) && !/pic\.twitter\.com/.test(a.textContent)) {
+          labels[h] = a.textContent;
+          a.replaceWith(" " + h + " ");
+        } else if (/pic\.twitter\.com/.test(a.textContent)) a.remove();
+      });
+      text = p.textContent;
+    }
+    const links = doc.querySelectorAll("blockquote > a");
+    const last = links[links.length - 1];
+    if (last && !isNaN(Date.parse(last.textContent))) date = new Date(Date.parse(last.textContent));
+  } catch (e) {}
+  const h = (String(o.author_url || "").match(/(?:x|twitter)\.com\/([A-Za-z0-9_]{1,15})/i) || [])[1] || "";
+  return {
+    name: str(o.author_name || "")
+      .trim()
+      .slice(0, 30),
+    handle: h,
+    text,
+    labels,
+    images: [],
+    date,
+  };
+}
+/* 끌어다 놓은 것에서 주소 꺼내기: 사진(img src) 우선, 그다음 링크. 트윗 사진 페이지(…/photo/2)면 몇 번째 사진인지도 */
+function dropUrls(dt) {
+  const imgs = [],
+    links = [];
+  let photo = 0;
+  const isImg = (u) => /^https?:\/\/pbs\.twimg\.com\/media\//i.test(u) || /\.(?:jpe?g|png|webp|gif)(?:[?#]|$)/i.test(u);
+  try {
+    const html = dt.getData("text/html");
+    if (html)
+      new DOMParser()
+        .parseFromString(html, "text/html")
+        .querySelectorAll("img[src]")
+        .forEach((i) => imgs.push(i.getAttribute("src")));
+  } catch (e) {}
+  const more = [];
+  try {
+    more.push(
+      ...String(dt.getData("text/uri-list") || "")
+        .split(/\r?\n/)
+        .filter((l) => l && l[0] !== "#")
+    );
+    more.push(...String(dt.getData("text/plain") || "").split(/\s+/));
+  } catch (e) {}
+  for (const u of more.map((x) => normLink(x)).filter(Boolean)) {
+    if (isImg(u)) imgs.push(u);
+    else links.push(u);
+    const pm = u.match(/\/status\/\d+\/photo\/(\d)/);
+    if (pm) photo = +pm[1];
+  }
+  const ok = [
+    ...new Set(
+      imgs
+        .map((u) => normLink(u))
+        .filter((u) => u && isImg(u))
+        .map(twimgBig)
+    ),
+  ];
+  return { imgs: ok, links: [...new Set(links)], photo };
+}
+/* 폼 링크 종류: 윗치폼·TMM → 선입금, 구글폼·네이버폼 → 수요조사 (글 안의 '수요조사/선입금' 말이 있으면 그쪽이 우선) */
+function formKind(url, label) {
+  let host = "";
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch (e) {
+    return null;
+  }
+  const s = host + " " + String(label || "").toLowerCase();
+  if (/witchform\./.test(s)) return "pre";
+  if (/tmm/.test(s)) return "pre"; /* TMM 주소 형식은 확실하지 않아서 'tmm'이 들어가면 선입금 폼으로 봄 */
+  if (/forms\.gle|docs\.google\.com|form\.naver\.com/.test(s)) return "sv";
+  return null;
+}
+const KW_SV = /수요\s*조사|수요\s*파악|수요\s*폼|수요\s*확인/g;
+const KW_PRE = /선\s*입금|선입|예약\s*(?:판매|구매|폼)|통판|사전\s*(?:예약|구매)|결제\s*폼|입금\s*기간/g;
+const RANGE_SEP = /^\s*(?:~|～|〜|∼|-|–|—|부터|에서)\s*~?\s*$/;
+/* 한 줄에서 날짜(+시각) 찾기: 10/1, 10.1, 10월 1일, 2026.10.01, (화), 23:59, 23시 59분, 오후 11시, 자정 */
+function findDates(line) {
+  const re = /(?:(\d{4})\s*[./년-]\s*)?(\d{1,2})\s*(?:[./]|월\s*)\s*(\d{1,2})(?!\d)(?:\s*일)?/g;
+  const out = [];
+  let m;
+  while ((m = re.exec(line))) {
+    const before = line.slice(0, m.index);
+    if (/[\d,.]$/.test(before)) continue;
+    const mo = +m[2],
+      d = +m[3];
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) continue;
+    let end = m.index + m[0].length;
+    let rest = line.slice(end);
+    if (/^\s*(?:cm|mm|kg|g|%|원|개|부|장|매|x|×)/i.test(rest)) continue;
+    const wd = rest.match(/^\s*\(\s*[월화수목금토일]\s*\)/);
+    if (wd) {
+      end += wd[0].length;
+      rest = line.slice(end);
+    }
+    let time = "";
+    const tm = rest.match(/^\s*(오전|오후|AM|PM)?\s*(\d{1,2})\s*(?::\s*(\d{2})|시(?:\s*(\d{1,2})\s*분|\s*(반))?)/i);
+    const tw = rest.match(/^\s*(자정|정오)/);
+    if (tm) {
+      let h = +tm[2];
+      const mi = tm[3] != null ? +tm[3] : tm[4] != null ? +tm[4] : tm[5] ? 30 : 0;
+      if (/오후|PM/i.test(tm[1] || "") && h < 12) h += 12;
+      if (/오전|AM/i.test(tm[1] || "") && h === 12) h = 0;
+      if (h === 24 && mi === 0) time = "23:59";
+      else if (h <= 23 && mi <= 59) time = String(h).padStart(2, "0") + ":" + String(mi).padStart(2, "0");
+      if (time) end += tm[0].length;
+    } else if (tw) {
+      time = tw[1] === "자정" ? "23:59" : "12:00";
+      end += tw[0].length;
+    }
+    out.push({ y: m[1] ? +m[1] : 0, mo, d, time, start: m.index, end });
+  }
+  return out;
+}
+function ymd(t, base, after) {
+  let y = t.y || base.getFullYear();
+  const mk = (yy) => new Date(yy, t.mo - 1, t.d);
+  if (!t.y) {
+    if (after && mk(y) < after) y++;
+    else if (!after && mk(y) < new Date(base.getTime() - 90 * 864e5)) y++;
+  }
+  const dt = mk(y);
+  if (dt.getMonth() !== t.mo - 1) return "";
+  return `${y}-${String(t.mo).padStart(2, "0")}-${String(t.d).padStart(2, "0")}`;
+}
+/* 트윗 글 → {sv:{from,to,time,link}, pre:{...}}. 줄마다 '수요조사/선입금' 말을 보고, 말이 없는 줄은 위쪽 제목을 따름.
+   어림짐작이라 틀릴 수 있음 → 채운 뒤 확인 안내 */
+function parseInfoText(text, labels, date) {
+  const base = date instanceof Date && !isNaN(date) ? date : new Date();
+  const out = {};
+  const put = (k, f, v) => {
+    if (!k || !v) return;
+    out[k] = out[k] || {};
+    if (!out[k][f]) out[k][f] = v;
+  };
+  const all = String(text || "");
+  const hasSv = /수요\s*조사|수요\s*파악|수요\s*폼/.test(all),
+    hasPre = /선\s*입금|선입|예약\s*(?:판매|구매)|통판/.test(all);
+  const only = hasSv && !hasPre ? "sv" : hasPre && !hasSv ? "pre" : "";
+  let cur = "";
+  const pending = [];
+  for (const line of all.split(/\n+/)) {
+    const kws = [];
+    for (const [k, re] of [
+      ["sv", KW_SV],
+      ["pre", KW_PRE],
+    ]) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(line))) kws.push({ k, at: m.index });
+    }
+    kws.sort((x, y) => x.at - y.at);
+    const dates = findDates(line);
+    const kindAt = (pos) => {
+      const prev = kws.filter((x) => x.at <= pos);
+      return prev.length ? prev[prev.length - 1].k : kws.length ? kws[0].k : "";
+    };
+    const lineKind = kws.length ? kindAt(dates.length ? dates[0].start : line.length) : "";
+    if (kws.length) cur = lineKind;
+    /* 날짜 */
+    if (dates.length) {
+      const k = lineKind || cur || only;
+      let from = null,
+        to = null;
+      if (dates.length >= 2 && RANGE_SEP.test(line.slice(dates[0].end, dates[1].start))) {
+        from = dates[0];
+        to = dates[1];
+      } else {
+        const t = dates[0],
+          pre = line.slice(Math.max(0, t.start - 8), t.start),
+          post = line.slice(t.end, t.end + 6);
+        if (/(?:~|～|〜|∼|마감)\s*$/.test(pre) || /^\s*(?:까지|마감)/.test(post) || /마감/.test(line)) to = t;
+        else if (/^\s*(?:~|～|〜|∼|부터)/.test(post) || /시작|오픈/.test(line)) from = t;
+      }
+      const rec = { from: from ? ymd(from, base) : "", to: "", time: "" };
+      if (to) {
+        rec.to = ymd(to, base, rec.from ? new Date(rec.from + "T00:00") : null);
+        rec.time = to.time;
+      }
+      if (rec.from || rec.to) {
+        if (k) for (const f of ["from", "to", "time"]) put(k, f, rec[f]);
+        else pending.push(rec);
+      }
+    }
+    /* 폼 링크 */
+    const urls = line.match(/https?:\/\/[^\s<>"')\]]+/g) || [];
+    for (const u0 of urls) {
+      const u = u0.replace(/[.,!?…]+$/, "");
+      const fk = formKind(u, (labels || {})[u]);
+      const formish = fk || /폼|form|신청|링크|주소/i.test(line);
+      if (!formish || /(?:x|twitter)\.com|pbs\.twimg\.com/i.test(u)) continue;
+      put(lineKind || cur || fk || only, "link", normLink(u) || "");
+    }
+  }
+  /* 종류 말이 없던 기간: 폼이 한 종류뿐이면 그쪽 */
+  const kinds = Object.keys(out);
+  for (const rec of pending) {
+    const k = kinds.length === 1 ? kinds[0] : "";
+    if (k) for (const f of ["from", "to", "time"]) put(k, f, rec[f]);
+  }
+  return out;
 }
 function linkHost(u) {
   try {
