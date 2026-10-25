@@ -455,3 +455,83 @@ test("트위터 사진을 작가 칸에 끌어다 놓으면 큰 사진으로 인
   expect(imgs).toEqual(["https://pbs.twimg.com/media/GxYz?format=jpg&name=large"]);
   expect(errors).toEqual([]);
 });
+
+async function openRoute(page) {
+  await page.evaluate(() => {
+    const T = window.__bcTest;
+    const S = T.normalize({
+      booths: ["b1", "b2", "b3"].map((id, k) => ({
+        id,
+        section: "A",
+        num: String(k + 1),
+        name: "부스" + (k + 1),
+        items: [{ id: "i" + k, name: "물품", price: 1000, type: "on" }],
+      })),
+    });
+    S.booths.forEach((b, k) => (b.pos = { hall: S.halls[0].id, x: 2 + k * 6, y: 2 }));
+    T.setS(S);
+    T.flush();
+  });
+  await page.reload();
+  await page.click('.tabbar [data-tab="map"]');
+  await page.click('[data-act="mroute"]');
+  await expect(page.locator(".rstop.rs")).toHaveCount(3);
+}
+const routeIds = (page) => page.locator(".rstop.rs").evaluateAll((rs) => rs.map((r) => r.dataset.id));
+
+test("동선: ⠿를 끌어서 부스 순서를 바꾸고, 새로고침 뒤에도 남는다", async ({ page }) => {
+  const errors = await openApp(page);
+  await openRoute(page);
+  const auto = await routeIds(page);
+  const g = page.locator(`.rstop[data-id="${auto[2]}"] .rgrip`);
+  const first = await page.locator(`.rstop[data-id="${auto[0]}"]`).boundingBox();
+  const box = await g.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, first.y + 2, { steps: 8 });
+  await page.mouse.up();
+  const moved = [auto[2], auto[0], auto[1]];
+  await expect.poll(() => routeIds(page)).toEqual(moved);
+  await expect(page.locator(".rstop.rs .rno").first()).toHaveText("1");
+  await expect(page.locator('[data-act="rauto"]')).toBeVisible();
+  await page.reload();
+  await page.click('.tabbar [data-tab="map"]');
+  await expect.poll(() => routeIds(page)).toEqual(moved);
+  // 키보드 ↓로 첫 부스를 한 칸 아래로
+  await page.locator(`.rstop[data-id="${moved[0]}"] .rgrip`).focus();
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(() => routeIds(page)).toEqual([moved[1], moved[0], moved[2]]);
+  // 자동 순서로 되돌리기
+  await page.click('[data-act="rauto"]');
+  await expect.poll(() => routeIds(page)).toEqual(auto);
+  await expect(page.locator(".rorder")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("동선: 직접 정한 순서 뒤에 새로 살 것이 생긴 부스는 끝에 붙는다", async ({ page }) => {
+  await openApp(page);
+  await openRoute(page);
+  const auto = await routeIds(page);
+  await page.evaluate((ids) => {
+    const T = window.__bcTest,
+      S = T.getS();
+    S.booths.find((b) => b.id === ids[0]).items[0].st = 1; // 첫 부스는 다 삼 → 빠짐
+    T.flush();
+  }, auto);
+  await page.reload();
+  await page.click('.tabbar [data-tab="map"]');
+  await expect(page.locator(".rstop.rs")).toHaveCount(2);
+  await page.locator(`.rstop[data-id="${auto[2]}"] .rgrip`).focus();
+  await page.keyboard.press("ArrowUp"); // 직접 순서 저장
+  const manual = await routeIds(page);
+  expect(manual).toEqual([auto[2], auto[1]]);
+  await page.evaluate((ids) => {
+    const T = window.__bcTest,
+      S = T.getS();
+    S.booths.find((b) => b.id === ids[0]).items[0].st = 0; // 다시 살 것 생김
+    T.flush();
+  }, auto);
+  await page.reload();
+  await page.click('.tabbar [data-tab="map"]');
+  await expect.poll(() => routeIds(page)).toEqual([auto[2], auto[1], auto[0]]);
+});
