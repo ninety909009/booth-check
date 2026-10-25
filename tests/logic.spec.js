@@ -204,3 +204,51 @@ test("tweetRef: 트위터 주소에서 아이디·글 번호를 읽는다", asyn
     null,
   ]);
 });
+
+test("twimgBig: 트위터 사진 주소를 큰 사진으로", async () => {
+  const r = await run((T) => [
+    T.twimgBig("https://pbs.twimg.com/media/GabcD12_x?format=jpg&name=small"),
+    T.twimgBig("https://pbs.twimg.com/media/GabcD12_x.png:thumb"),
+    T.twimgBig("https://pbs.twimg.com/media/GabcD12_x?format=webp&name=360x360"),
+    T.twimgBig("https://example.com/a.jpg"),
+  ]);
+  expect(r).toEqual([
+    "https://pbs.twimg.com/media/GabcD12_x?format=jpg&name=large",
+    "https://pbs.twimg.com/media/GabcD12_x?format=png&name=large",
+    "https://pbs.twimg.com/media/GabcD12_x?format=webp&name=large",
+    "https://example.com/a.jpg",
+  ]);
+});
+
+test("parseInfoText: 수요조사·선입금 단락이 나뉜 인포", async () => {
+  const text = [
+    "[부스 인포] 코믹월드 A01 ✨",
+    "",
+    "📢 수요조사",
+    "기간: 10/1(화) ~ 10/10(목) 23:59",
+    "폼: https://forms.gle/AbCd123",
+    "",
+    "💸 선입금",
+    "10월 15일 ~ 10월 25일 오후 11시 59분까지",
+    "https://witchform.com/payform/?uuid=xyz",
+    "아크릴 스탠드 15,000원 / 1.5cm 뱃지",
+  ].join("\n");
+  const r = await run((T, t) => T.parseInfoText(t, {}, new Date("2026-09-20T12:00:00+09:00")), text);
+  expect(r).toEqual({
+    sv: { from: "2026-10-01", to: "2026-10-10", time: "23:59", link: "https://forms.gle/AbCd123" },
+    pre: { from: "2026-10-15", to: "2026-10-25", time: "23:59", link: "https://witchform.com/payform/?uuid=xyz" },
+  });
+});
+
+test("parseInfoText: 한 줄짜리, 종류 말 없이 폼만, 해 넘김, 마감만", async () => {
+  const r = await run((T) => [
+    T.parseInfoText("선입금 ~12/24 자정 마감 https://witchform.com/a", {}, new Date("2026-12-01")),
+    T.parseInfoText("12/28~1/5\nhttps://t.co/AAA", { "https://t.co/AAA": "witchform.com/payform/…" }, new Date("2026-12-20")),
+    T.parseInfoText("수요조사 2026.11.02 - 2026.11.09 진행합니다!\n신청 링크 https://docs.google.com/forms/d/e/x/viewform", {}, null),
+    T.parseInfoText("신간 샘플입니다 3,000원", {}, null),
+  ]);
+  expect(r[0]).toEqual({ pre: { to: "2026-12-24", time: "23:59", link: "https://witchform.com/a" } });
+  expect(r[1]).toEqual({ pre: { link: "https://t.co/AAA", from: "2026-12-28", to: "2027-01-05" } });
+  expect(r[2]).toEqual({ sv: { from: "2026-11-02", to: "2026-11-09", link: "https://docs.google.com/forms/d/e/x/viewform" } });
+  expect(r[3]).toEqual({});
+});
