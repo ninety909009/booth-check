@@ -560,3 +560,45 @@ test("동선: 직접 정한 순서 뒤에 새로 살 것이 생긴 부스는 끝
   await page.click('.tabbar [data-tab="map"]');
   await expect.poll(() => routeIds(page)).toEqual([auto[2], auto[1], auto[0]]);
 });
+
+test("동선: 부스 줄에 운영 시간이 작게 보이고, 행사 당일엔 오픈 전·끝 상태도 붙는다", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-29T12:00:00+09:00")); // 자정 근처에 돌려도 같은 결과가 나오게 (한국 시각 정오)
+  await openApp(page);
+  await page.evaluate(() => {
+    const T = window.__bcTest;
+    const now = new Date(),
+      hm = (d) => String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"),
+      today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const later = new Date(now.getTime() + 90 * 60000),
+      earlier = new Date(now.getTime() - 90 * 60000);
+    const mk = (id, k, o) => ({
+      id,
+      section: "A",
+      num: String(k + 1),
+      name: "부스" + (k + 1),
+      ...o,
+      items: [{ id: "i" + k, name: "물품", price: 1000, type: "on" }],
+    });
+    const S = T.normalize({
+      event: { name: "행사", date: today },
+      booths: [
+        mk("b1", 0, { openFrom: "00:00", openTo: "23:59" }),
+        mk("b2", 1, { openFrom: hm(later), openTo: "23:59" }), // 아직 오픈 전
+        mk("b3", 2, { openFrom: "00:00", openTo: hm(earlier) }), // 끝남
+        mk("b4", 3, {}),
+      ],
+    });
+    S.booths.forEach((b, k) => (b.pos = { hall: S.halls[0].id, x: 2 + k * 6, y: 2 }));
+    T.setS(S);
+    T.flush();
+  });
+  await page.reload();
+  await page.click('.tabbar [data-tab="map"]');
+  await page.click('[data-act="mroute"]');
+  const small = (id) => page.locator(`.rstop[data-id="${id}"] .rnm small`);
+  await expect(small("b1")).toContainText("🕒00:00~23:59");
+  await expect(small("b2")).toContainText("후 오픈");
+  await expect(small("b3")).toContainText("운영 끝");
+  await expect(page.locator('.rstop[data-id="b3"] .ropen.end')).toHaveCount(1);
+  await expect(small("b4")).not.toContainText("🕒");
+});

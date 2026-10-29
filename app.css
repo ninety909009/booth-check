@@ -1728,6 +1728,14 @@ main.mapmode {
   border-top: 1px solid var(--line);
   cursor: pointer;
 }
+/* 동선 줄의 부스 운영 시간 */
+.ropen {
+  color: var(--on);
+  font-weight: 600;
+}
+.ropen.end {
+  color: var(--muted);
+}
 /* 동선 순서 바꾸기 손잡이 */
 .rgrip {
   flex: none;
@@ -1795,6 +1803,8 @@ main.mapmode {
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
+  white-space: normal; /* 운영 시간·상태가 길면 두 줄로 (잘리지 않게) */
+  overflow-wrap: anywhere;
 }
 .rmust {
   font-style: normal;

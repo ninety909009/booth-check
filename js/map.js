@@ -575,6 +575,21 @@ function findPanel() {
     <div class="rlist">${rows || `<p class="rhint" style="margin:6px 0">${q ? "찾는 부스가 배치도에 없어요." : "근처에 살 것 남은 부스가 없어요."}</p>`}</div>
   </div>`;
 }
+/* 동선 줄의 부스 운영 시간 (행사 당일이면 오픈 전·끝 상태도) */
+function routeOpen(b) {
+  if (!b.openFrom && !b.openTo) return "";
+  const z = spanState(b.openFrom, b.openTo),
+    st = !z
+      ? ""
+      : z.phase === "before"
+        ? ` · ${fmtLeft(z.left)} 후 오픈`
+        : z.phase === "after"
+          ? " · 운영 끝"
+          : z.left != null && z.left <= 60
+            ? ` · ${fmtLeft(z.left)} 남음`
+            : "";
+  return `<span class="ropen${z && z.phase === "after" ? " end" : ""}" title="부스 운영 시간">🕒${esc(rangeText(b.openFrom, b.openTo))}${st}</span> · `;
+}
 function routeCounts(n) {
   return [
     ["on", "현장"],
@@ -605,7 +620,7 @@ function routePanel() {
   const rows = R.stops
     .map((s) => {
       n++;
-      return `<div class="rstop rs" data-act="rgo" data-id="${s.b.id}"><button type="button" class="rgrip" data-act="rgrip" data-rgrip aria-label="${esc(boothCode(s.b))} 순서 바꾸기 (끌거나 ↑↓)">⠿</button><b class="rno" style="--rc:${ROUTE_C[s.g]}">${n}</b><span class="mini" style="--sc:${secColor(s.b.section)}">${esc(boothCode(s.b))}</span><span class="rnm">${s.r.must ? '<em class="rmust">★</em>' : ""}${esc(s.b.name || "이름 없는 부스")}<small>${routeCounts(s.r.n)}${multiHall ? " · " + esc(hallName(s.b.pos.hall)) : ""}</small></span><button type="button" class="btn ghost sm" data-act="open" data-id="${s.b.id}">열기</button></div>`;
+      return `<div class="rstop rs" data-act="rgo" data-id="${s.b.id}"><button type="button" class="rgrip" data-act="rgrip" data-rgrip aria-label="${esc(boothCode(s.b))} 순서 바꾸기 (끌거나 ↑↓)">⠿</button><b class="rno" style="--rc:${ROUTE_C[s.g]}">${n}</b><span class="mini" style="--sc:${secColor(s.b.section)}">${esc(boothCode(s.b))}</span><span class="rnm">${s.r.must ? '<em class="rmust">★</em>' : ""}${esc(s.b.name || "이름 없는 부스")}<small>${routeOpen(s.b)}${routeCounts(s.r.n)}${multiHall ? " · " + esc(hallName(s.b.pos.hall)) : ""}</small></span><button type="button" class="btn ghost sm" data-act="open" data-id="${s.b.id}">열기</button></div>`;
     })
     .join("");
   const un = R.unplaced.length
@@ -613,7 +628,7 @@ function routePanel() {
       R.unplaced
         .map(
           (s) =>
-            `<div class="rstop" data-act="open" data-id="${s.b.id}"><b class="rno off" style="--rc:${ROUTE_C[s.g]}">–</b><span class="mini" style="--sc:${secColor(s.b.section)}">${esc(boothCode(s.b))}</span><span class="rnm">${s.r.must ? '<em class="rmust">★</em>' : ""}${esc(s.b.name || "이름 없는 부스")}<small>${ROUTE_G[s.g]} · ${routeCounts(s.r.n)}</small></span></div>`
+            `<div class="rstop" data-act="open" data-id="${s.b.id}"><b class="rno off" style="--rc:${ROUTE_C[s.g]}">–</b><span class="mini" style="--sc:${secColor(s.b.section)}">${esc(boothCode(s.b))}</span><span class="rnm">${s.r.must ? '<em class="rmust">★</em>' : ""}${esc(s.b.name || "이름 없는 부스")}<small>${routeOpen(s.b)}${ROUTE_G[s.g]} · ${routeCounts(s.r.n)}</small></span></div>`
         )
         .join("")
     : "";
